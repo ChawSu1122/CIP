@@ -29,12 +29,51 @@
 
                 <div class="collapse navbar-collapse" id="navbarSupportedContent">
                     <!-- Left Side Of Navbar -->
-                    <ul class="navbar-nav me-auto">
-
+                    <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ route('home') }}">Feed</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ route('categories.index') }}">Categories</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ route('forum.features') }}">Features</a>
+                        </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="authDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                Auth Demo
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="authDropdown">
+                                <li><a class="dropdown-item" href="{{ route('session.login') }}">Session Login</a></li>
+                                <li><a class="dropdown-item" href="{{ route('token.login') }}">Token Login</a></li>
+                                <li><a class="dropdown-item" href="{{ route('token.demo') }}">Token Demo</a></li>
+                                <li><a class="dropdown-item" href="{{ route('api.docs') }}">API Docs</a></li>
+                            </ul>
+                        </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="researchDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                Thesis
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="researchDropdown">
+                                <li><a class="dropdown-item" href="{{ route('comparison.dashboard') }}">Comparison Dashboard</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="{{ route('dashboard.scalability') }}">Scalability</a></li>
+                                <li><a class="dropdown-item" href="{{ route('dashboard.storage') }}">Storage</a></li>
+                                <li><a class="dropdown-item" href="{{ route('dashboard.security') }}">Security</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="{{ route('thesis.questions') }}">Research Questions</a></li>
+                                <li><a class="dropdown-item" href="{{ route('thesis.methodology') }}">Methodology</a></li>
+                                <li><a class="dropdown-item" href="{{ route('thesis.experiment') }}">Experiment Results</a></li>
+                                <li><a class="dropdown-item" href="{{ route('thesis.security') }}">Security Analysis</a></li>
+                                <li><a class="dropdown-item" href="{{ route('thesis.replay') }}">Replay Attack Demo</a></li>
+                                <li><a class="dropdown-item" href="{{ route('thesis.complexity') }}">Complexity Analysis</a></li>
+                                <li><a class="dropdown-item" href="{{ route('presentation.summary') }}">Presentation Summary</a></li>
+                            </ul>
+                        </li>
                     </ul>
 
                     <!-- Right Side Of Navbar -->
-                    <ul class="navbar-nav ms-auto">
+                    <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
                         <!-- Authentication Links -->
                         @guest
                             @if (Route::has('login'))

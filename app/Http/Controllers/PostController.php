@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Post;
 use App\Models\Category;
+use App\Services\MetricRecorder;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -20,11 +21,22 @@ class PostController extends Controller
      */
     public function index(): View
     {
+        $start = MetricRecorder::start();
+
         $posts = Post::with(['user', 'category'])
+            ->withCount('comments')
             ->latest()
             ->paginate(10);
 
-        return view('posts.index', compact('posts'));
+        $categories = Category::withCount('posts')
+            ->orderByDesc('posts_count')
+            ->limit(8)
+            ->get();
+
+        $result = MetricRecorder::finish($start);
+        MetricRecorder::log('session', 'get_posts', request(), $result['duration_ms'], $result['memory_usage'], $result['query_count']);
+
+        return view('posts.index', compact('posts', 'categories'));
     }
 
     /**
@@ -41,6 +53,8 @@ class PostController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        $start = MetricRecorder::start();
+
         $validated = $request->validate([
             'title' => 'required|max:255',
             'body' => 'required',
@@ -49,6 +63,9 @@ class PostController extends Controller
         ]);
 
         $post = $request->user()->posts()->create($validated);
+
+        $result = MetricRecorder::finish($start);
+        MetricRecorder::log('session', 'create_post', $request, $result['duration_ms'], $result['memory_usage'], $result['query_count']);
 
         return redirect()->route('posts.show', $post)
             ->with('success', 'Post created successfully.');

@@ -1,35 +1,43 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container">
-    <div class="row justify-content-center">
+<div class="container py-4">
+    <div class="row align-items-center mb-4">
         <div class="col-md-8">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2>{{ $category->name }}</h2>
-                <a href="{{ route('categories.index') }}" class="btn btn-secondary">All Categories</a>
-            </div>
+            <h1 class="display-6 fw-bold">{{ $category->name }}</h1>
+            <p class="text-muted mb-0">Posts and discussions tagged under this topic.</p>
+        </div>
+        <div class="col-md-4 text-md-end mt-3 mt-md-0">
+            <a href="{{ route('categories.index') }}" class="btn btn-outline-secondary">View All Topics</a>
+        </div>
+    </div>
 
-            @foreach($posts as $post)
-                <div class="card mb-4">
-                    <img src="{{ $post->feature_image }}" class="card-img-top" alt="Featured image">
-                    <div class="card-body">
-                        <h3 class="card-title">{{ $post->title }}</h3>
-                        <div class="card-text text-muted mb-2">
-                            <small>
-                                Posted by {{ $post->user->name }}
-                                {{ $post->created_at->diffForHumans() }}
-                            </small>
+    <div class="row g-4">
+        @foreach($posts as $post)
+            <div class="col-12">
+                <div class="card shadow-sm border-0">
+                    <div class="row g-0 align-items-center">
+                        <div class="col-md-4">
+                            <img src="{{ $post->feature_image }}" class="img-fluid rounded-start h-100" style="object-fit: cover; min-height: 220px;" alt="Featured image">
                         </div>
-                        <p class="card-text">{{ Str::limit($post->body, 200) }}</p>
-                        <a href="{{ route('posts.show', $post) }}" class="btn btn-primary">Read More</a>
+                        <div class="col-md-8">
+                            <div class="card-body">
+                                <h2 class="h5"><a href="{{ route('posts.show', $post) }}" class="text-decoration-none text-dark">{{ $post->title }}</a></h2>
+                                <div class="text-muted mb-3">
+                                    <small>Posted by {{ $post->user->name }} · {{ $post->created_at->diffForHumans() }}</small>
+                                </div>
+                                <p class="mb-3 text-muted">{{ Str::limit($post->body, 200) }}</p>
+                                <a href="{{ route('posts.show', $post) }}" class="btn btn-sm btn-primary">Read More</a>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            @endforeach
-
-            <div class="d-flex justify-content-center">
-                {{ $posts->links() }}
             </div>
-        </div>
+        @endforeach
+    </div>
+
+    <div class="d-flex justify-content-center mt-4">
+        {{ $posts->links() }}
     </div>
 </div>
 @endsection

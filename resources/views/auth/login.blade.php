@@ -8,7 +8,7 @@
                 <div class="card-header">{{ __('Login') }}</div>
 
                 <div class="card-body">
-                    <form method="POST" action="{{ route('login') }}">
+                    <form id="auth-login-form" method="POST" action="{{ route('login') }}">
                         @csrf
 
                         <div class="row mb-3">
@@ -71,3 +71,22 @@
     </div>
 </div>
 @endsection
+
+<script>
+    // Ensure default auth login increments the session login counter
+    (function(){
+        const form = document.getElementById('auth-login-form');
+        if (!form) return;
+
+        form.addEventListener('submit', function(){
+            try {
+                const key = 'session_login_count';
+                const current = parseInt(localStorage.getItem(key) || '0', 10);
+                localStorage.setItem(key, (current + 1).toString());
+                window.dispatchEvent(new CustomEvent('auth:session-login', { detail: { count: current + 1 } }));
+            } catch (err) {
+                console.error('auth session counter error', err);
+            }
+        });
+    })();
+</script>

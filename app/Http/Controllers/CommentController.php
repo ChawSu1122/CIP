@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Comment;
 use App\Models\Post;
+use App\Services\MetricRecorder;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 
@@ -22,6 +23,8 @@ class CommentController extends Controller
      */
     public function store(Request $request, Post $post): RedirectResponse
     {
+        $start = MetricRecorder::start();
+
         $validated = $request->validate([
             'body' => 'required'
         ]);
@@ -30,6 +33,9 @@ class CommentController extends Controller
             'body' => $validated['body'],
             'user_id' => $request->user()->id
         ]);
+
+        $result = MetricRecorder::finish($start);
+        MetricRecorder::log('session', 'create_comment', $request, $result['duration_ms'], $result['memory_usage'], $result['query_count']);
 
         return back()->with('success', 'Comment added successfully.');
     }

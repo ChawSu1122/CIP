@@ -22,6 +22,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'api_token',
     ];
 
     /**
@@ -32,6 +33,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'api_token',
     ];
 
     /**
@@ -55,5 +57,19 @@ class User extends Authenticatable
     public function comments(): HasMany
     {
         return $this->hasMany(Comment::class);
+    }
+
+    public function createApiToken(): string
+    {
+        $token = bin2hex(random_bytes(40));
+
+        $this->forceFill(['api_token' => $token])->save();
+
+        return $token;
+    }
+
+    public function revokeApiToken(): void
+    {
+        $this->forceFill(['api_token' => null])->save();
     }
 }
