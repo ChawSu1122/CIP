@@ -9,6 +9,11 @@ use App\Http\Controllers\CategoryController;
 // Authentication Routes
 Auth::routes();
 
+// Token-based login page (uses Sanctum personal access tokens)
+Route::get('/token/login', function () {
+	return view('auth.token_login');
+})->name('token.login');
+
 // Redirect home to posts index
 Route::get('/', [PostController::class, 'index'])->name('home');
 Route::get('/home', [PostController::class, 'index'])->name('home');

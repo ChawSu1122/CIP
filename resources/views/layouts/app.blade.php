@@ -35,6 +35,10 @@
 
                     <!-- Right Side Of Navbar -->
                     <ul class="navbar-nav ms-auto">
+                        <!-- Token logout placeholder (populated by JS when token present) -->
+                        <li id="token-logout-container" class="nav-item" style="display:none">
+                            <a id="token-logout-link" class="nav-link" href="#">Token Logout</a>
+                        </li>
                         <!-- Authentication Links -->
                         @guest
                             @if (Route::has('login'))
@@ -76,5 +80,46 @@
             @yield('content')
         </main>
     </div>
+
+    <script>
+    // Show token logout link when an API token exists in localStorage
+    (function () {
+        const token = localStorage.getItem('api_token');
+        const container = document.getElementById('token-logout-container');
+        const link = document.getElementById('token-logout-link');
+        if (!container || !link) return;
+
+        if (token) {
+            container.style.display = '';
+        }
+
+        link.addEventListener('click', async function (e) {
+            e.preventDefault();
+            const t = localStorage.getItem('api_token');
+            if (!t) {
+                localStorage.removeItem('api_token');
+                window.location.href = '/token/login';
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/logout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + t,
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    },
+                });
+                // remove token locally regardless of server response
+                localStorage.removeItem('api_token');
+                window.location.href = '/token/login';
+            } catch (err) {
+                localStorage.removeItem('api_token');
+                window.location.href = '/token/login';
+            }
+        });
+    })();
+    </script>
 </body>
 </html>
