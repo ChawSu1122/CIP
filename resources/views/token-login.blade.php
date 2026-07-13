@@ -12,12 +12,12 @@
                     <form id="api-login-form">
                         <div class="mb-3">
                             <label for="email" class="form-label">Email Address</label>
-                            <input id="email" name="email" type="email" class="form-control" value="alice@example.com" required>
+                            <input id="email" type="email" class="form-control" value="alice@example.com" required>
                         </div>
 
                         <div class="mb-3">
                             <label for="password" class="form-label">Password</label>
-                            <input id="password" name="password" type="password" class="form-control" value="password" required>
+                            <input id="password" type="password" class="form-control" value="password" required>
                         </div>
 
                         <button type="submit" class="btn btn-success">Login and get token</button>
@@ -49,15 +49,11 @@
     const loginForm = document.getElementById('api-login-form');
     const tokenResult = document.getElementById('token-result');
     const loginAlert = document.getElementById('login-alert');
-    const csrfToken = '{{ csrf_token() }}';
 
     loginForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         tokenResult.textContent = 'Loading...';
         loginAlert.classList.add('d-none');
-
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
 
         try {
             const response = await fetch('/api/login', {
@@ -67,8 +63,8 @@
                     'Accept': 'application/json',
                 },
                 body: JSON.stringify({
-                    email,
-                    password,
+                    email: document.getElementById('email').value,
+                    password: document.getElementById('password').value,
                 }),
             });
 
@@ -82,43 +78,9 @@
                 return;
             }
 
-            const sessionPayload = new URLSearchParams();
-            sessionPayload.append('_token', csrfToken);
-            sessionPayload.append('email', email);
-            sessionPayload.append('password', password);
-            sessionPayload.append('remember', '1');
-
-            const sessionResponse = await fetch('/login', {
-                method: 'POST',
-                credentials: 'same-origin',
-                redirect: 'manual',
-                headers: {
-                    'X-CSRF-TOKEN': csrfToken,
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                body: sessionPayload,
-            });
-
-            const sessionOk =
-                sessionResponse.type === 'opaqueredirect' ||
-                sessionResponse.status === 302 ||
-                sessionResponse.status === 303 ||
-                sessionResponse.ok;
-
-            tokenResult.textContent = JSON.stringify({
-                ...data,
-                session_login: sessionOk ? {
-                    success: true,
-                    message: 'Web session established'
-                } : {
-                    success: false,
-                    message: 'Web session could not be established'
-                }
-            }, null, 2);
-
+            tokenResult.textContent = JSON.stringify(data, null, 2);
             loginAlert.className = 'alert alert-success mt-3';
-            loginAlert.innerHTML = 'Login successful — token received and web session created. <a href="{{ route('comparison.dashboard') }}">View comparison charts</a>';
+            loginAlert.innerHTML = 'Login successful — metrics saved. <a href="{{ route('comparison.dashboard') }}">View comparison charts</a>';
             loginAlert.classList.remove('d-none');
         } catch (error) {
             tokenResult.textContent = error.message;

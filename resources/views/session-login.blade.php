@@ -3,85 +3,57 @@
 @section('content')
 <div class="container py-4">
     <div class="row justify-content-center">
-        <div class="col-lg-8">
-            <div class="card mb-4">
+        <div class="col-md-8">
+            <div class="card">
                 <div class="card-header">Session-based Login Page</div>
                 <div class="card-body">
-                    <p>This page uses the web session login endpoint. A successful login records the result and keeps the user logged in for normal features like comments and posts.</p>
+                    <p>This page uses Laravel session authentication. Each successful login records scalability, storage, and security measurements to the database for thesis comparison.</p>
 
-                    <form id="session-login-form">
+                    @if (session('status'))
+                        <div class="alert alert-success">{{ session('status') }}</div>
+                    @endif
+
+                    @if ($errors->any())
+                        <div class="alert alert-danger">
+                            @foreach ($errors->all() as $error)
+                                <div>{{ $error }}</div>
+                            @endforeach
+                        </div>
+                    @endif
+
+                    <form id="session-login-form" method="POST" action="{{ route('login') }}">
+                        @csrf
+
                         <div class="mb-3">
                             <label for="email" class="form-label">Email Address</label>
-                            <input id="email" name="email" type="email" class="form-control" value="alice@example.com" required>
+                            <input id="email" type="email" class="form-control" name="email" value="{{ old('email', 'alice@example.com') }}" required autofocus>
                         </div>
 
                         <div class="mb-3">
                             <label for="password" class="form-label">Password</label>
-                            <input id="password" name="password" type="password" class="form-control" value="password" required>
+                            <input id="password" type="password" class="form-control" name="password" value="password" required>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input type="checkbox" class="form-check-input" name="remember" id="remember" {{ old('remember') ? 'checked' : '' }}>
+                            <label class="form-check-label" for="remember">Remember Me</label>
                         </div>
 
                         <button type="submit" class="btn btn-primary">Login with Session</button>
+                        <a href="{{ route('comparison.dashboard') }}" class="btn btn-outline-secondary">View Comparison</a>
                     </form>
 
-                    <div id="session-alert" class="alert mt-3 d-none"></div>
-
                     <div class="mt-4">
-                        <h5>Session result</h5>
-                        <pre id="session-result" class="bg-light p-3 rounded" style="min-height: 120px; white-space: pre-wrap;"></pre>
+                        <h5>What is measured on login?</h5>
+                        <ul class="small mb-0">
+                            <li><strong>Scalability:</strong> response time, memory usage, database queries</li>
+                            <li><strong>Storage:</strong> session payload size written to the sessions table</li>
+                            <li><strong>Security:</strong> login success/failure and CSRF-protected form submission</li>
+                        </ul>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
-
-<script>
-    const loginForm = document.getElementById('session-login-form');
-    const sessionResult = document.getElementById('session-result');
-    const sessionAlert = document.getElementById('session-alert');
-    const csrfToken = '{{ csrf_token() }}';
-
-    loginForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        sessionResult.textContent = 'Loading...';
-        sessionAlert.classList.add('d-none');
-
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
-
-        const formData = new FormData();
-        formData.append('_token', csrfToken);
-        formData.append('email', email);
-        formData.append('password', password);
-        formData.append('remember', '1');
-
-        try {
-            const response = await fetch('{{ route('session.login.submit') }}', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    'X-CSRF-TOKEN': csrfToken,
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                body: formData,
-            });
-
-            const data = await response.json();
-            sessionResult.textContent = JSON.stringify(data, null, 2);
-
-            if (response.ok && data.success) {
-                sessionAlert.className = 'alert alert-success mt-3';
-                sessionAlert.textContent = 'Login successful — web session established and you can now use comments/posts.';
-                sessionAlert.classList.remove('d-none');
-            } else {
-                sessionAlert.className = 'alert alert-danger mt-3';
-                sessionAlert.textContent = data.message || 'Login failed.';
-                sessionAlert.classList.remove('d-none');
-            }
-        } catch (error) {
-            sessionResult.textContent = error.message;
-        }
-    });
-</script>
 @endsection

@@ -3,10 +3,15 @@
 namespace App\Services;
 
 use App\Models\ExperimentMetric;
+use App\Models\RegistrationStorageMetric;
 use Illuminate\Support\Facades\DB;
 
 class ThesisComparisonService
 {
+    public function __construct(private RegistrationStorageService $registrationStorageService)
+    {
+    }
+
     public function getComparisonData(): array
     {
         $loginMetrics = ExperimentMetric::where('action', 'login')->get();
@@ -72,6 +77,7 @@ class ThesisComparisonService
             'actionMetrics' => $this->formatActionMetrics($sessionActions, $tokenActions),
             'scalability' => $scalability,
             'storage' => $storage,
+            'registrationStorage' => $this->registrationStorageService->getRegistrationComparison(),
             'security' => $security,
             'totals' => [
                 'session_logins' => $sessionLogins->count(),

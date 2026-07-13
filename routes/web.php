@@ -2,12 +2,14 @@
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Http\Request;
 use App\Http\Controllers\PostController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ThesisController;
 use App\Http\Controllers\ReplayAttackController;
+use App\Http\Controllers\SessionRegisterController;
+use App\Http\Controllers\TokenRegisterController;
+use App\Http\Controllers\StorageDashboardController;
 
 // Authentication Routes
 Auth::routes();
@@ -29,44 +31,11 @@ Route::delete('comments/{comment}', [CommentController::class, 'destroy'])->name
 
 // API documentation for token-based access
 Route::view('/api-docs', 'api-docs')->name('api.docs');
-
 Route::view('/session-login', 'session-login')->name('session.login');
-
-Route::post('/session-login', function (Request $request) {
-    $credentials = $request->only('email', 'password');
-    $remember = (bool) $request->input('remember', false);
-
-    $success = Auth::attempt($credentials, $remember);
-
-    if ($success) {
-        $request->session()->regenerate();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Session login successful',
-            'auth_type' => 'session',
-            'user' => [
-                'id' => Auth::id(),
-                'name' => Auth::user()->name,
-                'email' => Auth::user()->email,
-            ],
-            'session_id' => $request->session()->getId(),
-            'authenticated' => Auth::check(),
-        ], 200);
-    }
-
-    return response()->json([
-        'success' => false,
-        'message' => 'Invalid credentials',
-        'auth_type' => 'session',
-        'authenticated' => false,
-    ], 401);
-})->name('session.login.submit');
-
 Route::view('/token-login', 'token-login')->name('token.login');
 Route::view('/token-demo', 'token-demo')->name('token.demo');
 Route::view('/dashboard/scalability', 'dashboard.scalability')->name('dashboard.scalability');
-Route::view('/dashboard/storage', 'dashboard.storage')->name('dashboard.storage');
+Route::get('/dashboard/storage', [StorageDashboardController::class, 'index'])->name('dashboard.storage');
 Route::view('/dashboard/security', 'dashboard.security')->name('dashboard.security');
 Route::get('/comparison', [ThesisController::class, 'comparison'])->name('comparison.dashboard');
 Route::view('/presentation-summary', 'presentation-summary')->name('presentation.summary');
@@ -84,3 +53,10 @@ Route::get('/thesis/replay/session-info', [ReplayAttackController::class, 'mySes
     ->name('thesis.replay.session-info');
 Route::get('/thesis/complexity', [ThesisController::class, 'complexity'])->name('thesis.complexity');
 Route::get('/thesis/data', [ThesisController::class, 'data'])->name('thesis.data');
+
+// Registration flows for storage experiments
+Route::get('/session-register', [SessionRegisterController::class, 'showForm'])->name('session.register');
+Route::post('/session-register', [SessionRegisterController::class, 'register']);
+
+Route::get('/token-register', [TokenRegisterController::class, 'showForm'])->name('token.register');
+Route::post('/token-register', [TokenRegisterController::class, 'register']);
