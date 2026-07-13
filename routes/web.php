@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\Request;
 use App\Http\Controllers\PostController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\CategoryController;
@@ -28,7 +29,40 @@ Route::delete('comments/{comment}', [CommentController::class, 'destroy'])->name
 
 // API documentation for token-based access
 Route::view('/api-docs', 'api-docs')->name('api.docs');
+
 Route::view('/session-login', 'session-login')->name('session.login');
+
+Route::post('/session-login', function (Request $request) {
+    $credentials = $request->only('email', 'password');
+    $remember = (bool) $request->input('remember', false);
+
+    $success = Auth::attempt($credentials, $remember);
+
+    if ($success) {
+        $request->session()->regenerate();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Session login successful',
+            'auth_type' => 'session',
+            'user' => [
+                'id' => Auth::id(),
+                'name' => Auth::user()->name,
+                'email' => Auth::user()->email,
+            ],
+            'session_id' => $request->session()->getId(),
+            'authenticated' => Auth::check(),
+        ], 200);
+    }
+
+    return response()->json([
+        'success' => false,
+        'message' => 'Invalid credentials',
+        'auth_type' => 'session',
+        'authenticated' => false,
+    ], 401);
+})->name('session.login.submit');
+
 Route::view('/token-login', 'token-login')->name('token.login');
 Route::view('/token-demo', 'token-demo')->name('token.demo');
 Route::view('/dashboard/scalability', 'dashboard.scalability')->name('dashboard.scalability');
