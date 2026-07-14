@@ -115,10 +115,10 @@ window.ThesisCharts = (function () {
             '<strong>Winner: ' + winnerLabel(st.winner) + '</strong><br>' + st.verdict;
 
         barChart('security-score-chart', ['Session', 'Token'], [{
-            label: 'Security score',
-            data: [sec.session.score, sec.token.score],
+            label: 'Replay Attack Success Rate (%)',
+            data: [sec.session.replay_vulnerability_rate, sec.token.replay_vulnerability_rate],
             backgroundColor: [colors.session, colors.token],
-        }], 'Security Score (higher = better)');
+        }], 'Replay Attack Success Rate (lower = better)');
 
         barChart('security-success-chart', ['Replay succeeded', 'Replay blocked'], [
             {
@@ -168,7 +168,7 @@ window.ThesisCharts = (function () {
                 <tr><td>Avg login time (ms)</td><td>${s.session.avg_duration_ms}</td><td>${s.token.avg_duration_ms}</td><td>${s.session.avg_duration_ms <= s.token.avg_duration_ms ? 'Session' : 'Token'}</td></tr>
                 <tr><td>Storage per login (bytes)</td><td>${st.session.avg_bytes_per_login}</td><td>${st.token.avg_bytes_per_login}</td><td>${winnerLabel(st.winner)}</td></tr>
                 <tr><td>Total server storage (bytes)</td><td>${st.session.total_bytes}</td><td>${st.token.total_bytes}</td><td>${st.session.total_bytes <= st.token.total_bytes ? 'Session' : 'Token'}</td></tr>
-                <tr><td>Security score</td><td>${sec.session.score}</td><td>${sec.token.score}</td><td>${winnerLabel(sec.winner)}</td></tr>
+                <tr><td>Replay attack success rate (%)</td><td>${sec.session.replay_vulnerability_rate}</td><td>${sec.token.replay_vulnerability_rate}</td><td>${sec.session.replay_vulnerability_rate <= sec.token.replay_vulnerability_rate ? 'Session' : 'Token'}</td></tr>
                 <tr><td>Replay attacks succeeded</td><td>${sec.session.replay_success}</td><td>${sec.token.replay_success}</td><td>${sec.session.replay_success <= sec.token.replay_success ? 'Session' : 'Token'}</td></tr>
                 <tr><td>Replay attacks blocked</td><td>${sec.session.replay_blocked}</td><td>${sec.token.replay_blocked}</td><td>—</td></tr>
                 <tr><td>Replay vulnerability %</td><td>${sec.session.replay_vulnerability_rate}</td><td>${sec.token.replay_vulnerability_rate}</td><td>${sec.session.replay_vulnerability_rate <= sec.token.replay_vulnerability_rate ? 'Session' : 'Token'}</td></tr>
@@ -253,18 +253,13 @@ window.ThesisCharts = (function () {
     function renderSecurityPage(data) {
         const sec = data.security;
 
-        barChart('security-bar', ['Security score', 'Replay succeeded', 'Replay blocked'], [
+        barChart('security-bar', ['Session', 'Token'], [
             {
-                label: 'Session',
-                data: [sec.session.score, sec.session.replay_success, sec.session.replay_blocked],
-                backgroundColor: colors.session,
+                label: 'Replay Attack Success Rate (%)',
+                data: [sec.session.replay_vulnerability_rate, sec.token.replay_vulnerability_rate],
+                backgroundColor: [colors.session, colors.token],
             },
-            {
-                label: 'Token',
-                data: [sec.token.score, sec.token.replay_success, sec.token.replay_blocked],
-                backgroundColor: colors.token,
-            },
-        ], 'Security & Replay Attack Measurements');
+        ], 'Replay Attack Success Rate (lower = better)');
 
         barChart('security-replay-bar', ['Session', 'Token'], [
             {
@@ -301,13 +296,10 @@ window.ThesisCharts = (function () {
         const stats = document.getElementById('security-stats');
         if (stats) {
             stats.innerHTML = `
-                <li>Session CSRF protected: <strong>${sec.session.csrf_protected ? 'Yes' : 'No'}</strong></li>
-                <li>Session HttpOnly cookie: <strong>${sec.session.http_only_cookie ? 'Yes' : 'No'}</strong></li>
-                <li>Token bearer exposure risk: <strong>${sec.token.bearer_token_exposure ? 'Yes' : 'No'}</strong></li>
+                <li>Session replay attack success rate: <strong>${sec.session.replay_vulnerability_rate}%</strong></li>
+                <li>Token replay attack success rate: <strong>${sec.token.replay_vulnerability_rate}%</strong></li>
                 <li>Session replay attempts: <strong>${sec.session.replay_attempts}</strong> (${sec.session.replay_success} succeeded, ${sec.session.replay_blocked} blocked)</li>
                 <li>Token replay attempts: <strong>${sec.token.replay_attempts}</strong> (${sec.token.replay_success} succeeded, ${sec.token.replay_blocked} blocked)</li>
-                <li>Session replay vulnerability: <strong>${sec.session.replay_vulnerability_rate}%</strong></li>
-                <li>Token replay vulnerability: <strong>${sec.token.replay_vulnerability_rate}%</strong></li>
             `;
         }
     }

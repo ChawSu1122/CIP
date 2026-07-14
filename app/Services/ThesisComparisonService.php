@@ -184,6 +184,13 @@ class ThesisComparisonService
         $sessionReplayTotal = $sessionReplaySuccess + $sessionReplayBlocked;
         $tokenReplayTotal = $tokenReplaySuccess + $tokenReplayBlocked;
 
+        $sessionReplayRate = $sessionReplayTotal > 0
+            ? round(($sessionReplaySuccess / $sessionReplayTotal) * 100, 1)
+            : 0;
+        $tokenReplayRate = $tokenReplayTotal > 0
+            ? round(($tokenReplaySuccess / $tokenReplayTotal) * 100, 1)
+            : 0;
+
         $session = [
             'successful_logins' => $sessionSuccess,
             'failed_logins' => $sessionFailed,
@@ -191,13 +198,8 @@ class ThesisComparisonService
             'replay_attempts' => $sessionReplayTotal,
             'replay_success' => $sessionReplaySuccess,
             'replay_blocked' => $sessionReplayBlocked,
-            'replay_vulnerability_rate' => $sessionReplayTotal > 0
-                ? round(($sessionReplaySuccess / $sessionReplayTotal) * 100, 1)
-                : 0,
-            'csrf_protected' => true,
-            'http_only_cookie' => true,
-            'bearer_token_exposure' => false,
-            'server_side_revocation' => true,
+            'replay_vulnerability_rate' => $sessionReplayRate,
+            'replay_attack_success_rate' => $sessionReplayRate,
         ];
 
         $token = [
@@ -207,13 +209,8 @@ class ThesisComparisonService
             'replay_attempts' => $tokenReplayTotal,
             'replay_success' => $tokenReplaySuccess,
             'replay_blocked' => $tokenReplayBlocked,
-            'replay_vulnerability_rate' => $tokenReplayTotal > 0
-                ? round(($tokenReplaySuccess / $tokenReplayTotal) * 100, 1)
-                : 0,
-            'csrf_protected' => false,
-            'http_only_cookie' => false,
-            'bearer_token_exposure' => true,
-            'server_side_revocation' => true,
+            'replay_vulnerability_rate' => $tokenReplayRate,
+            'replay_attack_success_rate' => $tokenReplayRate,
         ];
 
         $sessionScore = $this->securityScore($session);
@@ -258,29 +255,9 @@ class ThesisComparisonService
 
     private function securityScore(array $metrics): int
     {
-        $score = (int) ($metrics['success_rate'] ?? 100);
+        $replayRate = (int) round($metrics['replay_vulnerability_rate'] ?? 0);
 
-        if ($metrics['csrf_protected']) {
-            $score += 10;
-        }
-        if ($metrics['http_only_cookie']) {
-            $score += 10;
-        }
-        if ($metrics['server_side_revocation']) {
-            $score += 5;
-        }
-        if ($metrics['bearer_token_exposure']) {
-            $score -= 15;
-        }
-
-        $replayRate = (int) ($metrics['replay_vulnerability_rate'] ?? 0);
-        $score -= (int) round($replayRate / 5);
-
-        if (($metrics['replay_blocked'] ?? 0) > 0) {
-            $score += 5;
-        }
-
-        return min(100, max(0, $score));
+        return max(0, 100 - $replayRate);
     }
 
     private function pickWinner(int $sessionScore, int $tokenScore, string $tieDefault): string
@@ -312,17 +289,15 @@ class ThesisComparisonService
 
     private function securityVerdict(string $winner, array $session, array $token): string
     {
-        $replayNote = '';
+        $sessionRate = (float) ($session['replay_vulnerability_rate'] ?? 0);
+        $tokenRate = (float) ($token['replay_vulnerability_rate'] ?? 0);
+
         if ($session['replay_attempts'] > 0 || $token['replay_attempts'] > 0) {
-            $safer = $session['replay_vulnerability_rate'] <= $token['replay_vulnerability_rate'] ? 'Session' : 'Token';
-            $replayNote = ' Replay attack demo: ' . $safer . ' auth had fewer successful replays. ';
+            $safer = $sessionRate <= $tokenRate ? 'Session' : 'Token';
+            return 'Replay attack demo: ' . $safer . ' authentication had the lower replay attack success rate (' . min($sessionRate, $tokenRate) . '% vs ' . max($sessionRate, $tokenRate) . '%).';
         }
 
-        if ($winner === 'session') {
-            return $replayNote . 'Session-based authentication is generally stronger for browser apps because HttpOnly cookies and CSRF protection reduce common web attack vectors.';
-        }
-
-        return $replayNote . 'Token-based authentication avoids CSRF but requires careful token storage on the client to prevent leakage and replay attacks.';
+        return 'Replay attack success rate was not recorded yet.';
     }
 
     private function formatLoginMetrics($sessionLogins, $tokenLogins): array

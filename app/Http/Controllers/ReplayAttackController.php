@@ -23,7 +23,7 @@ class ReplayAttackController extends Controller
         ]);
 
         $start = MetricRecorder::start();
-        $user = User::where('api_token', $validated['token'])->first();
+        $user = User::findUserByToken($validated['token']);
         $result = MetricRecorder::finish($start);
 
         MetricRecorder::log(

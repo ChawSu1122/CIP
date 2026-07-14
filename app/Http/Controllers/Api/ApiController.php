@@ -19,7 +19,7 @@ class ApiController extends Controller
 
         $token = substr($authorization, 7);
 
-        return User::where('api_token', $token)->first();
+        return User::findUserByToken($token);
     }
 
     protected function unauthorizedResponse(): JsonResponse
