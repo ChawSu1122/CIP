@@ -6,6 +6,7 @@ use App\Models\RegistrationStorageMetric;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class RegistrationStorageService
 {
@@ -16,8 +17,21 @@ class RegistrationStorageService
      */
     public function recordSessionRegistration(User $user, Request $request): RegistrationStorageMetric
     {
-        $request->session()->save();
-        $sessionId = $request->session()->getId();
+        // Create a fresh session row explicitly to avoid updating an existing session record
+        $sessionData = $request->session()->all();
+        $payload = base64_encode(serialize($sessionData));
+
+        $sessionId = Str::random(40);
+        $now = time();
+
+        DB::table(config('session.table', 'sessions'))->insert([
+            'id' => $sessionId,
+            'user_id' => $user->id,
+            'ip_address' => $request->ip(),
+            'user_agent' => substr((string) $request->header('User-Agent'), 0, 500),
+            'payload' => $payload,
+            'last_activity' => $now,
+        ]);
 
         $userRowBytes = $this->measureUserRowBytes($user->id);
         $sessionRowBytes = $this->measureSessionRowBytes($sessionId);
