@@ -64,11 +64,9 @@ class User extends Authenticatable
     {
         $now = time();
         $payload = [
-            'sub' => $this->getKey(),
+            'jti' => bin2hex(random_bytes(16)),
             'iat' => $now,
-            'exp' => $now + 3600,
-            'iss' => rtrim(config('app.url', 'http://localhost'), '/'),
-            'email' => $this->email,
+            'exp' => $now + 20,
         ];
 
         $token = $this->createJwtToken($payload);
