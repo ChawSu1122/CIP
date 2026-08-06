@@ -20,6 +20,10 @@ return new class extends Migration
             $table->integer('duration_ms')->default(0);
             $table->integer('memory_usage')->default(0);
             $table->integer('query_count')->default(0);
+            $table->integer('victim_id')->nullable();
+            $table->string('victim_name')->nullable();
+            $table->string('victim_email')->nullable();
+            $table->integer('attacker_id')->nullable();
             $table->timestamps();
         });
     }

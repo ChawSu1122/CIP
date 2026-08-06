@@ -19,6 +19,10 @@ class ExperimentMetric extends Model
         'query_count',
         'storage_bytes',
         'success',
+        'victim_id',
+        'victim_name',
+        'victim_email',
+        'attacker_id',
     ];
 
     protected function casts(): array

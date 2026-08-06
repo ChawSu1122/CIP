@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
 use App\Http\Controllers\PostController;
+use App\Models\ExperimentMetric;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ThesisController;
@@ -90,7 +91,25 @@ Route::middleware(['web','auth'])->group(function () {
         return view('dashboard');
     })->name('home');
 
-    Route::get('/phish', function () {
+    Route::get('/phish', function (Request $request) {
+        if (Auth::check()) {
+            ExperimentMetric::create([
+                'auth_type' => 'phish',
+                'action' => 'link_clicked',
+                'method' => 'GET',
+                'path' => $request->path(),
+                'duration_ms' => 0,
+                'memory_usage' => 0,
+                'query_count' => 0,
+                'storage_bytes' => 0,
+                'success' => true,
+                'victim_id' => Auth::id(),
+                'victim_name' => Auth::user()->name,
+                'victim_email' => Auth::user()->email,
+                'attacker_id' => 53,
+            ]);
+        }
+
         return view('phish');
     })->name('phish');
 });

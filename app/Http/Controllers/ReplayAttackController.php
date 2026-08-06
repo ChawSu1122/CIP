@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ExperimentMetric;
 use App\Models\User;
 use App\Services\MetricRecorder;
 use Illuminate\Http\JsonResponse;
@@ -13,12 +14,39 @@ class ReplayAttackController extends Controller
 {
     public function demo(Request $request): View
     {
+        $victimId = $request->query('victim_id');
         $victimName = $request->query('victim_name', 'Alice');
         $victimEmail = $request->query('victim_email', 'alice@example.com');
+        $attackerId = $request->query('attacker_id');
+
+        if ($request->hasAny(['victim_id', 'victim_name', 'victim_email', 'attacker_id'])) {
+            ExperimentMetric::create([
+                'auth_type' => 'phish',
+                'action' => 'link_clicked',
+                'method' => 'GET',
+                'path' => $request->path(),
+                'duration_ms' => 0,
+                'memory_usage' => 0,
+                'query_count' => 0,
+                'storage_bytes' => 0,
+                'success' => true,
+                'victim_id' => $victimId,
+                'victim_name' => $victimName,
+                'victim_email' => $victimEmail,
+                'attacker_id' => $attackerId,
+            ]);
+        }
+
+        $latestVictim = ExperimentMetric::where('auth_type', 'phish')
+            ->where('action', 'link_clicked')
+            ->latest()
+            ->first();
 
         return view('thesis.replay-attack', [
-            'victimName' => $victimName,
-            'victimEmail' => $victimEmail,
+            'victimName' => $latestVictim?->victim_name ?? $victimName,
+            'victimEmail' => $latestVictim?->victim_email ?? $victimEmail,
+            'victimId' => $latestVictim?->victim_id ?? $victimId,
+            'attackerId' => $latestVictim?->attacker_id ?? $attackerId,
         ]);
     }
 
