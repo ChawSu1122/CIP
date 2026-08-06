@@ -12,18 +12,18 @@
             </div>
 
             <div class="row gy-4">
-                <div class="col-lg-6">
+                @if($showTokenReplay)
+                <div class="col-lg-12">
                     <div class="card border-warning h-100">
-                        <div class="card-header bg-warning text-dark">Token Replay Attack</div>
+                        <div class="card-header bg-warning text-dark">Token Hijacking Attack</div>
                         <div class="card-body">
-                            <p class="small text-muted mb-3">Browser A is logged in as the victim. When the victim clicks the phishing link, Browser B receives the stolen bearer token and attacker-side data.</p>
+                            <!-- <p class="small text-muted mb-3">Browser A is logged in as the victim. When the victim clicks the phishing link, Browser B receives the stolen bearer token and attacker-side data.</p> -->
 
                             <ul class="list-group list-group-flush mb-3">
                                 <li class="list-group-item"><strong>Browser A (victim):</strong> {{ $victimName }} is logged in and clicks the phishing link.</li>
-                                <!-- <li class="list-group-item"><strong>Browser B (attacker):</strong> sees stolen account data after the phishing event.</li> -->
+                                <!-- <li class="list-group-item"><strong>Captured value:</strong> bearer token is replayed from the victim's authenticated session.</li> -->
+                                <li class="list-group-item"><strong>Captured token:</strong> <code>{{ $capturedToken ?? 'Not captured yet' }}</code></li>
                                 <li class="list-group-item"><strong>Authentication Method:</strong> Token-Based</li>
-                                <!-- <li class="list-group-item"><strong>Status:</strong> Credential Marked as Compromised</li>
-                                <li class="list-group-item"><strong>Source:</strong> Suspicious Link Simulation</li> -->
                                 <li class="list-group-item"><strong>Time:</strong> <span id="token-time">{{ now()->format('Y-m-d H:i:s') }}</span></li>
                             </ul>
 
@@ -31,25 +31,24 @@
                                 <button id="token-unauthorized-btn" class="btn btn-danger">Unauthorized Access</button>
                             </div>
 
-                            <div id="token-result" class="alert alert-secondary small" role="status">
+                            <!-- <div id="token-result" class="alert alert-secondary small" role="status">
                                 Attacker Browser B is ready to replay the stolen token and display the victim's account data.
-                            </div>
+                            </div> -->
                         </div>
                     </div>
                 </div>
-
-                <div class="col-lg-6">
+                @else
+                <div class="col-lg-12">
                     <div class="card border-danger h-100">
                         <div class="card-header bg-danger text-white">Session Hijacking Attack</div>
                         <div class="card-body">
-                            <p class="small text-muted mb-3">Browser A is logged in as the victim. When the victim clicks the phishing link, Browser B uses the stolen session cookie to impersonate the victim.</p>
+                            <!-- <p class="small text-muted mb-3">Browser A is logged in as the victim. When the victim clicks the phishing link, Browser B uses the stolen session cookie to impersonate the victim.</p> -->
 
                             <ul class="list-group list-group-flush mb-3">
                                 <li class="list-group-item"><strong>Browser A (victim):</strong> {{ $victimName }} is logged in and clicks the phishing link.</li>
-                                <!-- <li class="list-group-item"><strong>Browser B (attacker):</strong> sees stolen session data and victim account details.</li> -->
+                                <!-- <li class="list-group-item"><strong>Captured value:</strong> session ID is reused from the victim's browser session.</li> -->
+                                <li class="list-group-item"><strong>Captured session ID:</strong> <code>{{ $capturedSessionId ?? 'Not captured yet' }}</code></li>
                                 <li class="list-group-item"><strong>Authentication Method:</strong> Session-Based</li>
-                                <!-- <li class="list-group-item"><strong>Status:</strong> Credential Marked as Compromised</li>
-                                <li class="list-group-item"><strong>Source:</strong> Suspicious Link Simulation</li> -->
                                 <li class="list-group-item"><strong>Time:</strong> <span id="session-time">{{ now()->format('Y-m-d H:i:s') }}</span></li>
                             </ul>
 
@@ -57,12 +56,13 @@
                                 <button id="session-unauthorized-btn" class="btn btn-danger">Unauthorized Access</button>
                             </div>
 
-                            <div id="session-result" class="alert alert-secondary small" role="status">
+                            <!-- <div id="session-result" class="alert alert-secondary small" role="status">
                                 Attacker Browser B is ready to reuse the session cookie and display the victim's account data.
-                            </div>
+                            </div> -->
                         </div>
                     </div>
                 </div>
+                @endif
             </div>
 
             <!-- <div class="card mt-4">

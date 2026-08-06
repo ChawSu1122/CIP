@@ -20,6 +20,23 @@ class ReplayAttackController extends Controller
         $attackerId = $request->query('attacker_id');
 
         if ($request->hasAny(['victim_id', 'victim_name', 'victim_email', 'attacker_id'])) {
+            $authType = $request->query('victim_authentication_type', $request->session()->get('victim_authentication_type', 'session'));
+            $capturedSessionId = null;
+            $capturedToken = null;
+            $victimUser = null;
+
+            if ($victimId) {
+                $victimUser = User::find($victimId);
+            }
+
+            if ($authType === 'session') {
+                $capturedSessionId = $request->query('victim_session_id', $request->session()->get('victim_session_id'));
+            }
+
+            if ($authType === 'token' && $victimUser) {
+                $capturedToken = $victimUser->api_token;
+            }
+
             ExperimentMetric::create([
                 'auth_type' => 'phish',
                 'action' => 'link_clicked',
@@ -33,6 +50,9 @@ class ReplayAttackController extends Controller
                 'victim_id' => $victimId,
                 'victim_name' => $victimName,
                 'victim_email' => $victimEmail,
+                'victim_authentication_type' => $authType,
+                'victim_session_id' => $capturedSessionId,
+                'victim_token' => $capturedToken,
                 'attacker_id' => $attackerId,
             ]);
         }
@@ -42,11 +62,17 @@ class ReplayAttackController extends Controller
             ->latest()
             ->first();
 
+        $victimAuthType = $latestVictim?->victim_authentication_type ?? 'session';
+        $showTokenReplay = $victimAuthType === 'token';
+
         return view('thesis.replay-attack', [
             'victimName' => $latestVictim?->victim_name ?? $victimName,
             'victimEmail' => $latestVictim?->victim_email ?? $victimEmail,
             'victimId' => $latestVictim?->victim_id ?? $victimId,
             'attackerId' => $latestVictim?->attacker_id ?? $attackerId,
+            'capturedSessionId' => $latestVictim?->victim_session_id ?? null,
+            'capturedToken' => $latestVictim?->victim_token ?? null,
+            'showTokenReplay' => $showTokenReplay,
         ]);
     }
 

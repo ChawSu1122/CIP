@@ -22,6 +22,9 @@ class ExperimentMetric extends Model
         'victim_id',
         'victim_name',
         'victim_email',
+        'victim_authentication_type',
+        'victim_session_id',
+        'victim_token',
         'attacker_id',
     ];
 

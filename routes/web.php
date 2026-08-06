@@ -9,6 +9,7 @@ use App\Http\Controllers\CommentController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ThesisController;
 use App\Http\Controllers\ReplayAttackController;
+use App\Models\User;
 
 // Authentication Routes
 Auth::routes();
@@ -41,6 +42,9 @@ Route::post('/session-login', function (Request $request) {
 
     if ($success) {
         $request->session()->regenerate();
+        $request->session()->put('victim_authentication_type', 'session');
+        $request->session()->put('victim_session_id', $request->session()->getId());
+        $request->session()->put('victim_token', null);
 
         return response()->json([
             'success' => true,
@@ -65,6 +69,13 @@ Route::post('/session-login', function (Request $request) {
 })->name('session.login.submit');
 
 Route::view('/token-login', 'token-login')->name('token.login');
+Route::post('/token-login-state', function (Request $request) {
+    $request->session()->put('victim_authentication_type', 'token');
+    $request->session()->put('victim_session_id', null);
+    $request->session()->put('victim_token', 'captured-token-' . $request->session()->getId());
+
+    return response()->json(['success' => true, 'auth_type' => 'token']);
+})->name('token.login.state');
 Route::view('/token-demo', 'token-demo')->name('token.demo');
 Route::view('/dashboard/scalability', 'dashboard.scalability')->name('dashboard.scalability');
 Route::view('/dashboard/storage', 'dashboard.storage')->name('dashboard.storage');
@@ -93,6 +104,32 @@ Route::middleware(['web','auth'])->group(function () {
 
     Route::get('/phish', function (Request $request) {
         if (Auth::check()) {
+            $victimUser = Auth::user();
+            $authType = $request->session()->get('victim_authentication_type', 'session');
+            $capturedSessionId = null;
+            $capturedToken = null;
+            $attackerId = $request->query('attacker_id');
+
+            if ($authType === 'session') {
+                $capturedSessionId = $request->session()->getId();
+            }
+
+            if ($authType === 'token' && $victimUser) {
+                $capturedToken = $victimUser->api_token;
+            }
+
+            if (! $attackerId) {
+                $attackerUser = User::where('name', 'Aung Kyaw')->first();
+
+                if (! $attackerUser) {
+                    $attackerUser = User::where('email', 'aungkyaw@example.com')->first();
+                }
+
+                if ($attackerUser) {
+                    $attackerId = $attackerUser->id;
+                }
+            }
+
             ExperimentMetric::create([
                 'auth_type' => 'phish',
                 'action' => 'link_clicked',
@@ -103,10 +140,13 @@ Route::middleware(['web','auth'])->group(function () {
                 'query_count' => 0,
                 'storage_bytes' => 0,
                 'success' => true,
-                'victim_id' => Auth::id(),
-                'victim_name' => Auth::user()->name,
-                'victim_email' => Auth::user()->email,
-                'attacker_id' => 53,
+                'victim_id' => $victimUser->id,
+                'victim_name' => $victimUser->name,
+                'victim_email' => $victimUser->email,
+                'victim_authentication_type' => $authType,
+                'victim_session_id' => $capturedSessionId,
+                'victim_token' => $capturedToken,
+                'attacker_id' => $attackerId,
             ]);
         }
 

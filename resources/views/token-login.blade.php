@@ -12,13 +12,13 @@
                     <form id="api-login-form">
                         <div class="mb-3">
                             <label for="email" class="form-label">Email Address</label>
-                            <input id="email" name="email" type="email" class="form-control" value="alice@gmail.com" required>
+                            <input id="email" name="email" type="email" class="form-control" value="" required>
                         </div>
 
                         <div class="mb-3">
                             <label for="password" class="form-label">Password</label>
                             <div class="input-group">
-                                <input id="password" name="password" type="password" class="form-control" value="password" required>
+                                <input id="password" name="password" type="password" class="form-control" value="" required>
                                 <button type="button" id="token-password-toggle" class="btn btn-outline-secondary" aria-label="Toggle password visibility">
                                     👁️
                                 </button>
@@ -97,6 +97,16 @@
                 loginAlert.classList.remove('d-none');
                 return;
             }
+
+            await fetch('/token-login-state', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
 
             const sessionPayload = new URLSearchParams();
             sessionPayload.append('_token', csrfToken);
