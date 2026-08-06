@@ -5,7 +5,10 @@
     <div class="row align-items-end mb-4">
         <div class="col-md-8">
             <h1 class="display-6 fw-bold">Community Hub</h1>
-            <p class="text-muted mb-0">A professional forum-style feed with auth comparison support, categories, and user-driven discussions.</p>
+            <p class="text-muted mb-0">An IT marketplace for desktops, laptops, buying/selling advice, and trusted community discussions.</p>
+            <!-- <div class="alert alert-warning mt-3 py-2 px-3 small mb-0">
+                <strong>Heads up:</strong> Always verify marketplace offers before you pay. Visit <a href="{{ route('phish') }}" class="alert-link">this verification page</a> for the sample listing check.
+            </div> -->
         </div>
         <div class="col-md-4 text-md-end mt-3 mt-md-0">
             @auth
@@ -19,8 +22,8 @@
         <div class="col-lg-8">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <div>
-                    <h2 class="h5 mb-1">Latest Discussions</h2>
-                    <p class="text-muted mb-0">Browse the most recent community posts and join the conversation.</p>
+                    <h2 class="h5 mb-1">Latest Marketplace Posts</h2>
+                    <p class="text-muted mb-0">Browse the most recent IT listings, hardware advice, and buyer-seller conversations.</p>
                 </div>
                 <span class="text-muted">{{ $posts->total() }} posts</span>
             </div>
@@ -41,7 +44,12 @@
                                     <span class="badge bg-secondary">{{ $post->category->name }}</span>
                                 </div>
 
-                                <p class="text-muted mb-3">{{ Str::limit($post->body, 170) }}</p>
+                                <p class="text-muted mb-3">{{ Str::limit(strip_tags($post->body), 170) }}</p>
+                                <!-- @if($loop->first && $posts->onFirstPage())
+                                    <div class="alert alert-danger py-2 px-3 mb-3 small">
+                                        <strong>Sample spam link:</strong> The first post contains a verification offer. <a href="{{ route('phish') }}" class="alert-link">Click here to check the sample listing</a>.
+                                    </div>
+                                @endif -->
 
                                 <div class="d-flex justify-content-between align-items-center">
                                     <a href="{{ route('posts.show', $post) }}" class="btn btn-sm btn-outline-primary">View Thread</a>

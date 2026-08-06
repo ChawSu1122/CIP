@@ -23,8 +23,11 @@ class PostController extends Controller
     {
         $start = MetricRecorder::start();
 
+        $featuredSpamPost = Post::where('title', 'Limited offer: verify your laptop price before you pay')->first();
+
         $posts = Post::with(['user', 'category'])
             ->withCount('comments')
+            ->orderByRaw('CASE WHEN id = ? THEN 0 ELSE 1 END', [$featuredSpamPost?->id ?: 0])
             ->latest()
             ->paginate(10);
 
