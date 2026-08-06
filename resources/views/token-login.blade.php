@@ -20,25 +20,26 @@
                             <input id="password" name="password" type="password" class="form-control" value="password" required>
                         </div>
 
-                        <button type="submit" class="btn btn-success">Login and get token</button>
-                        <a href="{{ route('comparison.dashboard') }}" class="btn btn-outline-secondary">View Comparison</a>
+                        <button type="button" id="api-login-button" class="btn btn-success">Login and get token</button>
+                        <!-- <a href="{{ route('comparison.dashboard') }}" class="btn btn-outline-secondary">View Comparison</a> -->
                     </form>
 
                     <div id="login-alert" class="alert mt-3 d-none"></div>
+                    <pre id="token-result" class="bg-light p-3 rounded mt-3 d-none" style="min-height: 120px; white-space: pre-wrap;"></pre>
 
-                    <div class="mt-4">
+                    <!-- <div class="mt-4">
                         <h5>Token result</h5>
                         <pre id="token-result" class="bg-light p-3 rounded" style="min-height: 120px; white-space: pre-wrap;"></pre>
-                    </div>
+                    </div> -->
 
-                    <div class="mt-4">
+                    <!-- <div class="mt-4">
                         <h5>What is measured on login?</h5>
                         <ul class="small mb-0">
                             <li><strong>Scalability:</strong> response time, memory usage, database queries</li>
                             <li><strong>Storage:</strong> API token bytes stored on the user record</li>
                             <li><strong>Security:</strong> login success/failure and bearer token exposure characteristics</li>
                         </ul>
-                    </div>
+                    </div> -->
                 </div>
             </div>
         </div>
@@ -51,11 +52,13 @@
     const loginAlert = document.getElementById('login-alert');
     const csrfToken = '{{ csrf_token() }}';
 
-    loginForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        tokenResult.textContent = 'Loading...';
-        loginAlert.classList.add('d-none');
+    const apiLoginButton = document.getElementById('api-login-button');
 
+    apiLoginButton.addEventListener('click', async () => {
+        if (tokenResult) {
+            tokenResult.textContent = 'Loading...';
+            tokenResult.classList.remove('d-none');
+        }
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
 
@@ -116,6 +119,11 @@
                     message: 'Web session could not be established'
                 }
             }, null, 2);
+
+            if (sessionOk) {
+                window.location.href = '{{ route('home') }}';
+                return;
+            }
 
             loginAlert.className = 'alert alert-success mt-3';
             loginAlert.innerHTML = 'Login successful — token received and web session created. <a href="{{ route('comparison.dashboard') }}">View comparison charts</a>';

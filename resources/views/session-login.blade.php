@@ -9,7 +9,8 @@
                 <div class="card-body">
                     <p>This page uses the web session login endpoint. A successful login records the result and keeps the user logged in for normal features like comments and posts.</p>
 
-                    <form id="session-login-form">
+                    <form id="session-login-form" action="{{ route('session.login.submit') }}" method="POST">
+                        @csrf
                         <div class="mb-3">
                             <label for="email" class="form-label">Email Address</label>
                             <input id="email" name="email" type="email" class="form-control" value="alice@gmail.com" required>
@@ -20,15 +21,16 @@
                             <input id="password" name="password" type="password" class="form-control" value="password" required>
                         </div>
 
-                        <button type="submit" class="btn btn-primary">Login with Session</button>
+                        <button type="button" id="session-login-button" class="btn btn-primary">Login with Session</button>
                     </form>
 
                     <div id="session-alert" class="alert mt-3 d-none"></div>
+                    <pre id="session-result" class="bg-light p-3 rounded mt-3 d-none" style="min-height: 120px; white-space: pre-wrap;"></pre>
 
-                    <div class="mt-4">
+                    <!-- <div class="mt-4">
                         <h5>Session result</h5>
                         <pre id="session-result" class="bg-light p-3 rounded" style="min-height: 120px; white-space: pre-wrap;"></pre>
-                    </div>
+                    </div> -->
                 </div>
             </div>
         </div>
@@ -41,8 +43,9 @@
     const sessionAlert = document.getElementById('session-alert');
     const csrfToken = '{{ csrf_token() }}';
 
-    loginForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
+    const sessionButton = document.getElementById('session-login-button');
+
+    sessionButton.addEventListener('click', async () => {
         sessionResult.textContent = 'Loading...';
         sessionAlert.classList.add('d-none');
 
@@ -68,19 +71,24 @@
             });
 
             const data = await response.json();
-            sessionResult.textContent = JSON.stringify(data, null, 2);
+            if (sessionResult) {
+                sessionResult.textContent = JSON.stringify(data, null, 2);
+                sessionResult.classList.remove('d-none');
+            }
 
             if (response.ok && data.success) {
-                sessionAlert.className = 'alert alert-success mt-3';
-                sessionAlert.textContent = 'Login successful — web session established and you can now use comments/posts.';
-                sessionAlert.classList.remove('d-none');
+                window.location.href = '{{ route('home') }}';
+                return;
             } else {
                 sessionAlert.className = 'alert alert-danger mt-3';
                 sessionAlert.textContent = data.message || 'Login failed.';
                 sessionAlert.classList.remove('d-none');
             }
         } catch (error) {
-            sessionResult.textContent = error.message;
+            if (sessionResult) {
+                sessionResult.textContent = error.message;
+                sessionResult.classList.remove('d-none');
+            }
         }
     });
 </script>
