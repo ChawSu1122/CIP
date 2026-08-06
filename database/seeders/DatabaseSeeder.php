@@ -18,12 +18,12 @@ class DatabaseSeeder extends Seeder
         // Create two specific users
         User::factory()->create([
             'name' => 'Alice',
-            'email' => 'alice@example.com',
+            'email' => 'alice@gmail.com',
         ]);
 
         User::factory()->create([
             'name' => 'Bob',
-            'email' => 'bob@example.com',
+            'email' => 'bob@gmail.com',
         ]);
 
         // Seed categories
@@ -55,7 +55,7 @@ class DatabaseSeeder extends Seeder
 
         Comment::factory()->create([
             'body' => 'You should verify the comparison before buying. Click <a href="/phish">here to compare the listing</a> and make sure the price matches what other sellers are asking in Yangon.',
-            'user_id' => User::factory()->create(['name' => 'Aung Kyaw', 'email' => 'aungkyaw@example.com'])->id,
+            'user_id' => User::factory()->create(['name' => 'Aung Kyaw', 'email' => 'aungkyaw@gmail.com'])->id,
             'post_id' => $featuredPost->id,
         ]);
 

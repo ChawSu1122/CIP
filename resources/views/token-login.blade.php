@@ -12,7 +12,7 @@
                     <form id="api-login-form">
                         <div class="mb-3">
                             <label for="email" class="form-label">Email Address</label>
-                            <input id="email" name="email" type="email" class="form-control" value="alice@example.com" required>
+                            <input id="email" name="email" type="email" class="form-control" value="alice@gmail.com" required>
                         </div>
 
                         <div class="mb-3">

@@ -14,7 +14,7 @@
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label for="email" class="form-label">Email</label>
-                                <input type="email" id="email" class="form-control" value="alice@example.com" required>
+                                <input type="email" id="email" class="form-control" value="alice@gmail.com" required>
                             </div>
                             <div class="col-md-6">
                                 <label for="password" class="form-label">Password</label>
@@ -49,7 +49,7 @@
 Content-Type: application/json
 
 {
-  "email": "alice@example.com",
+  "email": "alice@gmail.com",
   "password": "password"
 }
 </code></pre>

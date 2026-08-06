@@ -20,7 +20,7 @@
 Content-Type: application/json
 
 {
-  "email": "alice@example.com",
+  "email": "alice@gmail.com",
   "password": "password"
 }
 </code></pre>
@@ -32,7 +32,7 @@ Content-Type: application/json
   "user": {
     "id": 1,
     "name": "Alice",
-    "email": "alice@example.com"
+    "email": "alice@gmail.com"
   }
 }
 </code></pre>

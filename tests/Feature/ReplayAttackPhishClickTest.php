@@ -15,7 +15,7 @@ class ReplayAttackPhishClickTest extends TestCase
     {
         $user = User::factory()->create([
             'name' => 'Bob',
-            'email' => 'bob@example.com',
+            'email' => 'bob@gmail.com',
         ]);
 
         $response = $this->actingAs($user)->get('/phish');
@@ -29,7 +29,7 @@ class ReplayAttackPhishClickTest extends TestCase
             'action' => 'link_clicked',
             'victim_id' => $user->id,
             'victim_name' => 'Bob',
-            'victim_email' => 'bob@example.com',
+            'victim_email' => 'bob@gmail.com',
             'attacker_id' => 53,
         ]);
     }

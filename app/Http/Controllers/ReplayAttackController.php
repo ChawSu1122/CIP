@@ -16,7 +16,7 @@ class ReplayAttackController extends Controller
     {
         $victimId = $request->query('victim_id');
         $victimName = $request->query('victim_name', 'Alice');
-        $victimEmail = $request->query('victim_email', 'alice@example.com');
+        $victimEmail = $request->query('victim_email', 'alice@gmail.com');
         $attackerId = $request->query('attacker_id');
 
         if ($request->hasAny(['victim_id', 'victim_name', 'victim_email', 'attacker_id'])) {
