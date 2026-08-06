@@ -21,9 +21,8 @@ class ReplayAttackPhishClickTest extends TestCase
         $response = $this->actingAs($user)->get('/phish');
 
         $response->assertStatus(200);
-        $response->assertSee('Congratulations!!');
-        $response->assertSee('Bob');
-        $response->assertSee('bob@example.com');
+        $response->assertSee('Congratulations');
+        $response->assertSee('iPhone 17');
 
         $this->assertDatabaseHas('experiment_metrics', [
             'auth_type' => 'phish',

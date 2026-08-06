@@ -20,10 +20,10 @@
 
                             <ul class="list-group list-group-flush mb-3">
                                 <li class="list-group-item"><strong>Browser A (victim):</strong> {{ $victimName }} is logged in and clicks the phishing link.</li>
-                                <li class="list-group-item"><strong>Browser B (attacker):</strong> sees stolen account data after the phishing event.</li>
+                                <!-- <li class="list-group-item"><strong>Browser B (attacker):</strong> sees stolen account data after the phishing event.</li> -->
                                 <li class="list-group-item"><strong>Authentication Method:</strong> Token-Based</li>
-                                <li class="list-group-item"><strong>Status:</strong> Credential Marked as Compromised</li>
-                                <li class="list-group-item"><strong>Source:</strong> Suspicious Link Simulation</li>
+                                <!-- <li class="list-group-item"><strong>Status:</strong> Credential Marked as Compromised</li>
+                                <li class="list-group-item"><strong>Source:</strong> Suspicious Link Simulation</li> -->
                                 <li class="list-group-item"><strong>Time:</strong> <span id="token-time">{{ now()->format('Y-m-d H:i:s') }}</span></li>
                             </ul>
 
@@ -46,10 +46,10 @@
 
                             <ul class="list-group list-group-flush mb-3">
                                 <li class="list-group-item"><strong>Browser A (victim):</strong> {{ $victimName }} is logged in and clicks the phishing link.</li>
-                                <li class="list-group-item"><strong>Browser B (attacker):</strong> sees stolen session data and victim account details.</li>
+                                <!-- <li class="list-group-item"><strong>Browser B (attacker):</strong> sees stolen session data and victim account details.</li> -->
                                 <li class="list-group-item"><strong>Authentication Method:</strong> Session-Based</li>
-                                <li class="list-group-item"><strong>Status:</strong> Credential Marked as Compromised</li>
-                                <li class="list-group-item"><strong>Source:</strong> Suspicious Link Simulation</li>
+                                <!-- <li class="list-group-item"><strong>Status:</strong> Credential Marked as Compromised</li>
+                                <li class="list-group-item"><strong>Source:</strong> Suspicious Link Simulation</li> -->
                                 <li class="list-group-item"><strong>Time:</strong> <span id="session-time">{{ now()->format('Y-m-d H:i:s') }}</span></li>
                             </ul>
 
@@ -65,13 +65,13 @@
                 </div>
             </div>
 
-            <div class="card mt-4">
+            <!-- <div class="card mt-4">
                 <div class="card-header">Victim Alert Simulation</div>
                 <div class="card-body">
                     <p class="small text-muted mb-3">When an unauthorized access attempt is detected, the original user immediately receives a security alert.</p>
                     <div id="victim-status" class="alert alert-info">{{ $victimName }}'s browser is currently active. If unauthorized access is detected, a security alert will appear.</div>
                 </div>
-            </div>
+            </div> -->
         </div>
     </div>
 </div>
