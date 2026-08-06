@@ -84,3 +84,13 @@ Route::get('/thesis/replay/session-info', [ReplayAttackController::class, 'mySes
     ->name('thesis.replay.session-info');
 Route::get('/thesis/complexity', [ThesisController::class, 'complexity'])->name('thesis.complexity');
 Route::get('/thesis/data', [ThesisController::class, 'data'])->name('thesis.data');
+
+Route::middleware(['web','auth'])->group(function () {
+    Route::get('/dashboard', function () {
+        return view('dashboard');
+    })->name('home');
+
+    Route::get('/phish', function () {
+        return view('phish');
+    })->name('phish');
+});

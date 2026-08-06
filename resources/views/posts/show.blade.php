@@ -71,7 +71,9 @@
                                         </div>
                                     @endcan
                                 </div>
-                                <div id="comment-{{ $comment->id }}-body">{{ $comment->body }}</div>
+                                <div id="comment-{{ $comment->id }}-body">
+                                    {!! $comment->body !!}
+                                </div>
                                 @can('update', $comment)
                                     <div id="comment-{{ $comment->id }}-form" style="display: none;">
                                         <form action="{{ route('comments.update', $comment) }}" method="POST">
