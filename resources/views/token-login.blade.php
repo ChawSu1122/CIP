@@ -17,7 +17,12 @@
 
                         <div class="mb-3">
                             <label for="password" class="form-label">Password</label>
-                            <input id="password" name="password" type="password" class="form-control" value="password" required>
+                            <div class="input-group">
+                                <input id="password" name="password" type="password" class="form-control" value="password" required>
+                                <button type="button" id="token-password-toggle" class="btn btn-outline-secondary" aria-label="Toggle password visibility">
+                                    👁️
+                                </button>
+                            </div>
                         </div>
 
                         <button type="button" id="api-login-button" class="btn btn-success">Login and get token</button>
@@ -53,6 +58,14 @@
     const csrfToken = '{{ csrf_token() }}';
 
     const apiLoginButton = document.getElementById('api-login-button');
+    const tokenPasswordToggle = document.getElementById('token-password-toggle');
+    const tokenPassword = document.getElementById('password');
+
+    tokenPasswordToggle.addEventListener('click', () => {
+        const type = tokenPassword.getAttribute('type') === 'password' ? 'text' : 'password';
+        tokenPassword.setAttribute('type', type);
+        tokenPasswordToggle.textContent = type === 'password' ? '👁️' : '❌';
+    });
 
     apiLoginButton.addEventListener('click', async () => {
         if (tokenResult) {

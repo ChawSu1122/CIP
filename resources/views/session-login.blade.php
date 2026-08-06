@@ -18,7 +18,12 @@
 
                         <div class="mb-3">
                             <label for="password" class="form-label">Password</label>
-                            <input id="password" name="password" type="password" class="form-control" value="password" required>
+                            <div class="input-group">
+                                <input id="password" name="password" type="password" class="form-control" value="password" required>
+                                <button type="button" id="session-password-toggle" class="btn btn-outline-secondary" aria-label="Toggle password visibility">
+                                    👁️
+                                </button>
+                            </div>
                         </div>
 
                         <button type="button" id="session-login-button" class="btn btn-primary">Login with Session</button>
@@ -44,6 +49,14 @@
     const csrfToken = '{{ csrf_token() }}';
 
     const sessionButton = document.getElementById('session-login-button');
+    const sessionPasswordToggle = document.getElementById('session-password-toggle');
+    const sessionPassword = document.getElementById('password');
+
+    sessionPasswordToggle.addEventListener('click', () => {
+        const type = sessionPassword.getAttribute('type') === 'password' ? 'text' : 'password';
+        sessionPassword.setAttribute('type', type);
+        sessionPasswordToggle.textContent = type === 'password' ? '👁️' : '❌';
+    });
 
     sessionButton.addEventListener('click', async () => {
         sessionResult.textContent = 'Loading...';
