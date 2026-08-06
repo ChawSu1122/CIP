@@ -11,9 +11,15 @@ use Illuminate\View\View;
 
 class ReplayAttackController extends Controller
 {
-    public function demo(): View
+    public function demo(Request $request): View
     {
-        return view('thesis.replay-attack');
+        $victimName = $request->query('victim_name', 'Alice');
+        $victimEmail = $request->query('victim_email', 'alice@example.com');
+
+        return view('thesis.replay-attack', [
+            'victimName' => $victimName,
+            'victimEmail' => $victimEmail,
+        ]);
     }
 
     public function testTokenReplay(Request $request): JsonResponse
