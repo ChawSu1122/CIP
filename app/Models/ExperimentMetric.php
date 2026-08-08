@@ -25,6 +25,8 @@ class ExperimentMetric extends Model
         'victim_authentication_type',
         'victim_session_id',
         'victim_token',
+        'victim_user_agent',
+        'attacker_user_agent',
         'attacker_id',
     ];
 

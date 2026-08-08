@@ -89,6 +89,7 @@ Route::get('/thesis/methodology', [ThesisController::class, 'methodology'])->nam
 Route::get('/thesis/experiment', [ThesisController::class, 'experiment'])->name('thesis.experiment');
 Route::get('/thesis/security', [ThesisController::class, 'security'])->name('thesis.security');
 Route::get('/thesis/replay-attack', [ReplayAttackController::class, 'demo'])->name('thesis.replay');
+Route::post('/thesis/replay/compromise', [ReplayAttackController::class, 'compromise'])->name('thesis.replay.compromise');
 Route::post('/thesis/replay/token', [ReplayAttackController::class, 'testTokenReplay'])->name('thesis.replay.token');
 Route::post('/thesis/replay/session', [ReplayAttackController::class, 'testSessionReplay'])->name('thesis.replay.session');
 Route::get('/thesis/replay/session-info', [ReplayAttackController::class, 'mySessionInfo'])
@@ -147,6 +148,7 @@ Route::middleware(['web','auth'])->group(function () {
                 'victim_session_id' => $capturedSessionId,
                 'victim_token' => $capturedToken,
                 'attacker_id' => $attackerId,
+                'victim_user_agent' => $request->header('User-Agent'),
             ]);
         }
 

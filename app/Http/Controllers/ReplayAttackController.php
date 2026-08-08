@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\MetricRecorder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
@@ -73,6 +74,89 @@ class ReplayAttackController extends Controller
             'capturedSessionId' => $latestVictim?->victim_session_id ?? null,
             'capturedToken' => $latestVictim?->victim_token ?? null,
             'showTokenReplay' => $showTokenReplay,
+        ]);
+    }
+
+    public function compromise(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'victim_id' => 'required|exists:users,id',
+            'victim_authentication_type' => 'required|in:session,token',
+            'compromised_session_id' => 'nullable|string',
+            'compromised_token' => 'nullable|string',
+        ]);
+
+        $victim = User::findOrFail($validated['victim_id']);
+        $metric = ExperimentMetric::where('victim_id', $victim->id)
+            ->where('auth_type', 'phish')
+            ->where('action', 'link_clicked')
+            ->latest()
+            ->first();
+
+        if (! $metric) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No phishing event record was found for this victim.',
+            ], 404);
+        }
+
+        $expectedType = $metric->victim_authentication_type ?? 'session';
+        $currentUserAgent = $request->header('User-Agent', '');
+        $storedVictimUserAgent = $metric->victim_user_agent;
+        $differentBrowser = ! empty($storedVictimUserAgent)
+            && ! empty($currentUserAgent)
+            && strcasecmp($storedVictimUserAgent, $currentUserAgent) !== 0;
+
+        $credentialMatches = false;
+
+        if ($expectedType === 'session') {
+            $credentialMatches = ! empty($validated['compromised_session_id'])
+                && $validated['compromised_session_id'] === $metric->victim_session_id;
+        } else {
+            $credentialMatches = ! empty($validated['compromised_token'])
+                && $validated['compromised_token'] === $metric->victim_token;
+        }
+
+        $success = $differentBrowser && $credentialMatches;
+
+        ExperimentMetric::create([
+            'auth_type' => 'phish',
+            'action' => 'compromise_detected',
+            'method' => 'POST',
+            'path' => 'thesis/replay/compromise',
+            'duration_ms' => 0,
+            'memory_usage' => 0,
+            'query_count' => 0,
+            'storage_bytes' => 0,
+            'success' => $success,
+            'victim_id' => $victim->id,
+            'victim_name' => $victim->name,
+            'victim_email' => $victim->email,
+            'victim_authentication_type' => $expectedType,
+            'victim_session_id' => $metric->victim_session_id,
+            'victim_token' => $metric->victim_token,
+            'attacker_id' => Auth::id(),
+            'victim_user_agent' => $storedVictimUserAgent,
+            'attacker_user_agent' => $currentUserAgent,
+        ]);
+
+        if (! $success) {
+            return response()->json([
+                'success' => false,
+                'auto_login' => false,
+                'message' => 'Unauthorized access blocked.',
+            ], 403);
+        }
+
+        Auth::loginUsingId($victim->id, true);
+        $request->session()->regenerate();
+        $request->session()->put('compromised_victim_id', $victim->id);
+
+        return response()->json([
+            'success' => true,
+            'auto_login' => true,
+            'message' => 'Unauthorized access succeeded.',
+            'victim' => $victim->only(['id', 'name', 'email']),
         ]);
     }
 

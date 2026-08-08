@@ -96,11 +96,9 @@
 <script>
     const victimName = @json($victimName);
     const victimEmail = @json($victimEmail);
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
     const tokenTime = document.getElementById('token-time');
     const sessionTime = document.getElementById('session-time');
-    const tokenResult = document.getElementById('token-result');
-    const sessionResult = document.getElementById('session-result');
-    const victimStatus = document.getElementById('victim-status');
     const toastEl = document.getElementById('security-alert-toast');
     const bootstrapToast = (typeof bootstrap !== 'undefined' ? bootstrap : window.bootstrap);
     const alertToast = bootstrapToast ? new bootstrapToast.Toast(toastEl, { delay: 10000 }) : null;
@@ -108,48 +106,71 @@
     function updateTimestamps() {
         const now = new Date();
         const formatted = now.toISOString().slice(0, 19).replace('T', ' ');
-        tokenTime.textContent = formatted;
-        sessionTime.textContent = formatted;
+        if (tokenTime) tokenTime.textContent = formatted;
+        if (sessionTime) sessionTime.textContent = formatted;
     }
 
     function showSecurityAlert() {
+        const victimStatus = document.getElementById('victim-status');
+        if (!victimStatus) return;
         victimStatus.className = 'alert alert-danger';
         victimStatus.innerHTML = `<strong>Alert:</strong> ${victimName}, your account was accessed from another browser. Use the immediate logout option if this was not you.`;
-        alertToast.show();
+        if (alertToast) alertToast.show();
     }
 
-    function simulateUnauthorizedAccess(type) {
+    async function simulateUnauthorizedAccess(type) {
         updateTimestamps();
-        const resultArea = type === 'token' ? tokenResult : sessionResult;
-        const stolenData = {
-            email: victimEmail,
-            name: victimName,
-            account_id: 'user-101',
-            last_active: new Date().toISOString().slice(0, 19).replace('T', ' '),
-            auth_method: type === 'token' ? 'Bearer token' : 'Session cookie',
+        const payload = {
+            victim_id: @json($victimId ?? null),
+            victim_authentication_type: type === 'token' ? 'token' : 'session',
+            compromised_token: type === 'token' ? @json($capturedToken ?? null) : null,
+            compromised_session_id: type === 'session' ? @json($capturedSessionId ?? null) : null,
         };
 
-        const message = type === 'token'
-            ? `Browser B now has ${victimName}'s stolen bearer token and victim account metadata.`
-            : `Browser B now has ${victimName}'s stolen session cookie and victim account metadata.`;
+        try {
+            const response = await fetch('{{ route('thesis.replay.compromise') }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+                body: JSON.stringify(payload),
+            });
 
-        resultArea.className = 'alert alert-danger small';
-        resultArea.innerHTML = `<strong>${message}</strong>\nVictim data exposed to attacker browser B:\n${JSON.stringify(stolenData, null, 2)}`;
-        showSecurityAlert();
+            const data = await response.json();
+            const statusMessage = document.createElement('div');
+            statusMessage.className = 'alert ' + (data.success ? 'alert-success' : 'alert-danger') + ' mt-3';
+            statusMessage.innerHTML = `<strong>${data.message}</strong><br>Detected from different browser and compromised credential: ${type === 'token' ? 'token' : 'session'}`;
+
+            const cardBody = document.querySelector('.card-body');
+            if (cardBody) {
+                cardBody.appendChild(statusMessage);
+            }
+
+            if (data.success) {
+                showSecurityAlert();
+            }
+        } catch (error) {
+            console.error(error);
+        }
     }
 
-    document.getElementById('token-unauthorized-btn').addEventListener('click', () => {
+    document.getElementById('token-unauthorized-btn')?.addEventListener('click', () => {
         simulateUnauthorizedAccess('token');
     });
 
-    document.getElementById('session-unauthorized-btn').addEventListener('click', () => {
+    document.getElementById('session-unauthorized-btn')?.addEventListener('click', () => {
         simulateUnauthorizedAccess('session');
     });
 
-    document.getElementById('logout-all-btn').addEventListener('click', () => {
-        alertToast.hide();
-        victimStatus.className = 'alert alert-warning';
-        victimStatus.innerHTML = `<strong>Action taken:</strong> ${victimName} has requested logout from all devices. This is a simulated security response.`;
+    document.getElementById('logout-all-btn')?.addEventListener('click', () => {
+        if (alertToast) alertToast.hide();
+        const victimStatus = document.getElementById('victim-status');
+        if (victimStatus) {
+            victimStatus.className = 'alert alert-warning';
+            victimStatus.innerHTML = `<strong>Action taken:</strong> ${victimName} has requested logout from all devices. This is a simulated security response.`;
+        }
     });
 </script>
 @endsection
