@@ -29,7 +29,7 @@
                         <button type="button" id="session-login-button" class="btn btn-primary">Login with Session</button>
                     </form>
 
-                    <div id="session-alert" class="alert mt-3 d-none"></div>
+                    <div id="session-alert" class="alert mt-3 d-none" role="alert" aria-live="polite"></div>
                     <pre id="session-result" class="bg-light p-3 rounded mt-3 d-none" style="min-height: 120px; white-space: pre-wrap;"></pre>
 
                     <!-- <div class="mt-4">
@@ -43,8 +43,6 @@
 </div>
 
 <script>
-    const loginForm = document.getElementById('session-login-form');
-    const sessionResult = document.getElementById('session-result');
     const sessionAlert = document.getElementById('session-alert');
     const csrfToken = '{{ csrf_token() }}';
 
@@ -58,8 +56,13 @@
         sessionPasswordToggle.textContent = type === 'password' ? '👁️' : '❌';
     });
 
+    function showSessionAlert(message, type = 'danger') {
+        sessionAlert.className = `alert alert-${type} alert-dismissible fade show mt-3`;
+        sessionAlert.innerHTML = message;
+        sessionAlert.classList.remove('d-none');
+    }
+
     sessionButton.addEventListener('click', async () => {
-        sessionResult.textContent = 'Loading...';
         sessionAlert.classList.add('d-none');
 
         const email = document.getElementById('email').value;
@@ -84,24 +87,16 @@
             });
 
             const data = await response.json();
-            if (sessionResult) {
-                sessionResult.textContent = JSON.stringify(data, null, 2);
-                sessionResult.classList.remove('d-none');
-            }
-
             if (response.ok && data.success) {
                 window.location.href = '{{ route('home') }}';
                 return;
-            } else {
-                sessionAlert.className = 'alert alert-danger mt-3';
-                sessionAlert.textContent = data.message || 'Login failed.';
-                sessionAlert.classList.remove('d-none');
             }
+
+            const errorMessage = data.message ||
+                (data.errors ? Object.values(data.errors).flat().join(' ') : 'Incorrect email or password. Please try again.');
+            showSessionAlert(errorMessage, 'danger');
         } catch (error) {
-            if (sessionResult) {
-                sessionResult.textContent = error.message;
-                sessionResult.classList.remove('d-none');
-            }
+            showSessionAlert('An unexpected error occurred. Please try again.', 'danger');
         }
     });
 </script>

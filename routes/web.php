@@ -62,10 +62,10 @@ Route::post('/session-login', function (Request $request) {
 
     return response()->json([
         'success' => false,
-        'message' => 'Invalid credentials',
+        'message' => 'Incorrect email or password. Please try again.',
         'auth_type' => 'session',
         'authenticated' => false,
-    ], 401);
+    ], 422);
 })->name('session.login.submit');
 
 Route::view('/token-login', 'token-login')->name('token.login');

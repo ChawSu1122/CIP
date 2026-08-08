@@ -34,7 +34,7 @@ class AuthController extends ApiController
                 false
             );
 
-            return response()->json(['message' => 'Invalid credentials.'], 422);
+            return response()->json(['message' => 'Incorrect email or password. Please try again.'], 422);
         }
 
         $token = $user->createApiToken();

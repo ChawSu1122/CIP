@@ -25,11 +25,11 @@
                             </div>
                         </div>
 
-                        <button type="button" id="api-login-button" class="btn btn-success">Login and get token</button>
+                        <button type="button" id="api-login-button" class="btn btn-success">Login with token</button>
                         <!-- <a href="{{ route('comparison.dashboard') }}" class="btn btn-outline-secondary">View Comparison</a> -->
                     </form>
 
-                    <div id="login-alert" class="alert mt-3 d-none"></div>
+                    <div id="login-alert" class="alert mt-3 d-none" role="alert" aria-live="polite"></div>
                     <pre id="token-result" class="bg-light p-3 rounded mt-3 d-none" style="min-height: 120px; white-space: pre-wrap;"></pre>
 
                     <!-- <div class="mt-4">
@@ -52,14 +52,18 @@
 </div>
 
 <script>
-    const loginForm = document.getElementById('api-login-form');
-    const tokenResult = document.getElementById('token-result');
     const loginAlert = document.getElementById('login-alert');
     const csrfToken = '{{ csrf_token() }}';
 
     const apiLoginButton = document.getElementById('api-login-button');
     const tokenPasswordToggle = document.getElementById('token-password-toggle');
     const tokenPassword = document.getElementById('password');
+
+    function showTokenAlert(message, type = 'danger') {
+        loginAlert.className = `alert alert-${type} alert-dismissible fade show mt-3`;
+        loginAlert.textContent = message;
+        loginAlert.classList.remove('d-none');
+    }
 
     tokenPasswordToggle.addEventListener('click', () => {
         const type = tokenPassword.getAttribute('type') === 'password' ? 'text' : 'password';
@@ -68,10 +72,8 @@
     });
 
     apiLoginButton.addEventListener('click', async () => {
-        if (tokenResult) {
-            tokenResult.textContent = 'Loading...';
-            tokenResult.classList.remove('d-none');
-        }
+        loginAlert.classList.add('d-none');
+
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
 
@@ -91,10 +93,9 @@
             const data = await response.json();
 
             if (!response.ok) {
-                tokenResult.textContent = JSON.stringify(data, null, 2);
-                loginAlert.className = 'alert alert-danger mt-3';
-                loginAlert.textContent = 'Login failed — failed attempt recorded for security comparison.';
-                loginAlert.classList.remove('d-none');
+                const errorMessage = data.message ||
+                    (data.errors ? Object.values(data.errors).flat().join(' ') : 'Incorrect email or password. Please try again.');
+                showTokenAlert(errorMessage, 'danger');
                 return;
             }
 
@@ -132,17 +133,6 @@
                 sessionResponse.status === 303 ||
                 sessionResponse.ok;
 
-            tokenResult.textContent = JSON.stringify({
-                ...data,
-                session_login: sessionOk ? {
-                    success: true,
-                    message: 'Web session established'
-                } : {
-                    success: false,
-                    message: 'Web session could not be established'
-                }
-            }, null, 2);
-
             if (sessionOk) {
                 window.location.href = '{{ route('home') }}';
                 return;
@@ -152,7 +142,7 @@
             loginAlert.innerHTML = 'Login successful — token received and web session created. <a href="{{ route('comparison.dashboard') }}">View comparison charts</a>';
             loginAlert.classList.remove('d-none');
         } catch (error) {
-            tokenResult.textContent = error.message;
+            showTokenAlert('An unexpected error occurred. Please try again.', 'danger');
         }
     });
 </script>
