@@ -44,6 +44,7 @@
 
                             <div class="col-md-6">
                                 <input id="password" type="password" class="form-control @error('password') is-invalid @enderror" name="password" required autocomplete="new-password">
+                                {{-- <div id="password-hint" class="form-text mt-2">Use at least 8 characters, including letters, a number, and one special character such as @, #, $, or !.</div> --}}
 
                                 @error('password')
                                     <span class="invalid-feedback" role="alert">
@@ -74,4 +75,33 @@
         </div>
     </div>
 </div>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const passwordInput = document.getElementById('password');
+        const passwordHint = document.getElementById('password-hint');
+
+        if (!passwordInput || !passwordHint) {
+            return;
+        }
+
+        passwordInput.addEventListener('input', function () {
+            const value = passwordInput.value;
+            const hasLetter = /[A-Za-z]/.test(value);
+            const hasNumber = /[0-9]/.test(value);
+            const hasSpecial = /[@#$!]/.test(value);
+            const longEnough = value.length >= 8;
+
+            const isValid = longEnough && hasLetter && hasNumber && hasSpecial;
+
+            passwordHint.className = isValid
+                ? 'form-text mt-2 text-success'
+                : 'form-text mt-2 text-muted';
+
+            passwordHint.textContent = isValid
+                ? 'Password looks strong.'
+                : 'Use at least 8 characters, including letters, a number, and one special character such as @, #, $, or !.';
+        });
+    });
+</script>
+
 @endsection
