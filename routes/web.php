@@ -98,11 +98,11 @@ Route::get('/thesis/replay/session-info', [ReplayAttackController::class, 'mySes
 Route::get('/thesis/complexity', [ThesisController::class, 'complexity'])->name('thesis.complexity');
 Route::get('/thesis/data', [ThesisController::class, 'data'])->name('thesis.data');
 
-Route::middleware(['web','auth'])->group(function () {
-    Route::get('/dashboard', function () {
-        return view('dashboard');
-    })->name('home');
+Route::view('/dashboard', 'dashboard')->name('dashboard');
+Route::view('/dashboard/revocation-latency', 'dashboard.revocation-latency')->name('dashboard.revocation-latency');
+Route::view('/dashboard/data-exposure-risk', 'dashboard.data-exposure-risk')->name('dashboard.data-exposure-risk');
 
+Route::middleware(['web','auth'])->group(function () {
     Route::get('/phish', function (Request $request) {
         if (Auth::check()) {
             $victimUser = Auth::user();
