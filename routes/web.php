@@ -11,6 +11,7 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ThesisController;
 use App\Http\Controllers\ReplayAttackController;
 use App\Models\User;
+use App\Services\CredentialExposureAnalyzer;
 
 // Authentication Routes
 Auth::routes();
@@ -154,6 +155,35 @@ Route::post('/dashboard/revocation-latency/validate-session', function (Request 
         'logout_time' => $logoutMetric?->logout_time?->toIso8601String(),
     ]);
 })->name('dashboard.revocation-latency.validate.session');
+
+Route::post('/dashboard/data-exposure-risk/analyze', function (Request $request, CredentialExposureAnalyzer $analyzer) {
+    $validated = $request->validate([
+        'session_id' => 'nullable|string|min:5',
+        'token' => 'nullable|string|min:5',
+    ]);
+
+    if (empty($validated['session_id']) && empty($validated['token'])) {
+        return response()->json([
+            'message' => 'Enter at least one captured credential to analyze.',
+        ], 422);
+    }
+
+    $sessionResult = null;
+    if (! empty($validated['session_id'])) {
+        $sessionResult = $analyzer->analyzeSession($validated['session_id']);
+    }
+
+    $tokenResult = null;
+    if (! empty($validated['token'])) {
+        $tokenResult = $analyzer->analyzeToken($validated['token']);
+    }
+
+    return response()->json([
+        'success' => true,
+        'session' => $sessionResult,
+        'token' => $tokenResult,
+    ]);
+})->name('dashboard.data-exposure-risk.analyze');
 
 Route::get('/dashboard/revocation-latency/status', function () {
     $latestMetric = ExperimentMetric::where('action', 'link_clicked')

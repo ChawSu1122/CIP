@@ -3,12 +3,444 @@
 @section('title', 'Data Exposure Risk')
 
 @section('content')
-    <div>
+@php
+    use App\Models\ExperimentMetric;
+
+    $sessionPhish = ExperimentMetric::where('action', 'link_clicked')
+        ->where('victim_authentication_type', 'session')
+        ->orderBy('created_at', 'desc')
+        ->first();
+
+    $tokenPhish = ExperimentMetric::where('action', 'link_clicked')
+        ->where('victim_authentication_type', 'token')
+        ->orderBy('created_at', 'desc')
+        ->first();
+
+    $sessionVictimName = $sessionPhish?->victim_name ?? '—';
+    $sessionVictimSession = $sessionPhish?->victim_session_id ?? '—';
+    $sessionPhishTime = $sessionPhish?->created_at?->format('Y-m-d H:i:s') ?? '—';
+
+    $tokenVictimName = $tokenPhish?->victim_name ?? '—';
+    $tokenVictimToken = $tokenPhish?->victim_token ?? '—';
+    $tokenPhishTime = $tokenPhish?->created_at?->format('Y-m-d H:i:s') ?? '—';
+@endphp
+
+    <div class="mb-3">
         <h1 class="page-title">Data Exposure Risk</h1>
-        <p class="page-copy">This page will show exposure risk metrics and comparisons for session-based and token-based authentication methods.</p>
+        <p class="page-copy">This page compares how credential and identity data is exposed in session-based versus token-based authentication flows, with a simple payload simulation for each method.</p>
     </div>
 
-    <div class="panel">
-        <p class="panel-text">Data exposure risk content will be added here in the next step.</p>
+    <div class="row row-cols-1 row-cols-lg-2 gx-4 gy-4 mt-3">
+        <div class="col">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-primary text-white border-0">
+                    <h2 class="h5 mb-1">Token Hijacking Attack</h2>
+                </div>
+
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item py-3">
+                        <div class="d-flex justify-content-between align-items-center gap-3">
+                            <span class="text-secondary">Browser A (victim)</span>
+                            <span class="fw-semibold">{{ $tokenVictimName }} is logged in and clicks the phishing link.</span>
+                        </div>
+                    </li>
+
+                    <li class="list-group-item py-3">
+                        <div class="d-flex justify-content-between align-items-center gap-3">
+                            <span class="text-secondary">Captured token ID</span>
+                            <span class="fw-semibold text-break">{{ $tokenVictimToken }}</span>
+                        </div>
+                    </li>
+
+                    <li class="list-group-item py-3">
+                        <div class="d-flex justify-content-between align-items-center gap-3">
+                            <span class="text-secondary">Authentication Method</span>
+                            <span class="fw-semibold">Token-Based</span>
+                        </div>
+                    </li>
+
+                    <li class="list-group-item py-3">
+                        <div class="d-flex justify-content-between align-items-center gap-3">
+                            <span class="text-secondary">Time</span>
+                            <span class="fw-semibold">{{ $tokenPhishTime }}</span>
+                        </div>
+                    </li>
+
+                    <li class="list-group-item py-3">
+                    <div class="d-flex justify-content-between align-items-center gap-3">
+                        <textarea id="captured-token" class="form-control form-control-sm" rows="2" placeholder="Type captured token here..."></textarea>
+                    </div>
+                </li>
+                </ul>
+
+                <div class="card-body">
+                    <button id="analyze-token-risk" type="button" class="btn btn-primary">Analyze Token Risk</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-danger text-white border-0">
+                    <h2 class="h5 mb-1">Session Hijacking Attack</h2>
+                </div>
+
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item py-3">
+                        <div class="d-flex justify-content-between align-items-center gap-3">
+                            <span class="text-secondary">Browser A (victim)</span>
+                            <span class="fw-semibold">{{ $sessionVictimName }} is logged in and clicks the phishing link.</span>
+                        </div>
+                    </li>
+
+                    <li class="list-group-item py-3">
+                        <div class="d-flex justify-content-between align-items-center gap-3">
+                            <span class="text-secondary">Captured session ID</span>
+                            <span class="fw-semibold text-break">{{ $sessionVictimSession }}</span>
+                        </div>
+                    </li>
+
+                    <li class="list-group-item py-3">
+                        <div class="d-flex justify-content-between align-items-center gap-3">
+                            <span class="text-secondary">Authentication Method</span>
+                            <span class="fw-semibold">Session-Based</span>
+                        </div>
+                    </li>
+
+                    <li class="list-group-item py-3">
+                        <div class="d-flex justify-content-between align-items-center gap-3">
+                            <span class="text-secondary">Time</span>
+                            <span class="fw-semibold">{{ $sessionPhishTime }}</span>
+                        </div>
+                    </li>
+
+                    <li class="list-group-item py-3">
+                        <div class="d-flex justify-content-between align-items-center gap-3">
+                            <textarea id="captured-session" class="form-control form-control-sm" rows="2" placeholder="Type captured session here..."></textarea>
+                        </div>
+                    </li>
+                </ul>
+
+                <div class="card-body">
+                    <button id="analyze-session-risk" type="button" class="btn btn-danger">Analyze Session Risk</button>
+                </div>
+
+                {{-- <div class="card-body">
+                    <label for="session-payload" class="form-label">Simulated Session Credential Payload</label>
+                    <textarea id="session-payload" class="form-control" rows="6">{
+                        "user_id": 101,
+                        "email": "alice@example.com",
+                        "role": "user",
+                        "session_id": "AwFyOkIrjamLOK0OohcZZOsYKnIWECJZirbWOZ5b"
+                        }</textarea>
+                </div> --}}
+            </div>
+        </div>
     </div>
+
+    <div class="card shadow-sm border-0 mt-4">
+        <div class="card-header bg-white border-0">
+            <h2 class="h5 mb-1">Data Exposure Risk Comparison</h2>
+            <p class="mb-0 small text-secondary">Compares exposed identity fields embedded in the captured session ID versus claims decoded from the captured JWT token.</p>
+        </div>
+        <div class="card-body">
+            <div style="position: relative; height: 320px;">
+                <canvas id="exposureRiskChart"></canvas>
+            </div>
+            <div id="chart-legend" class="row g-3 mt-3 d-none">
+                <div class="col-md-6">
+                    <div class="border rounded p-3 h-100">
+                        <p class="mb-1 fw-semibold"><span class="d-inline-block rounded me-2" style="width: 12px; height: 12px; background: #2563eb;"></span>Session-Based</p>
+                        <p class="mb-0 small text-secondary" id="session-chart-detail">Run the session test to calculate exposed fields from the captured session ID.</p>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="border rounded p-3 h-100">
+                        <p class="mb-1 fw-semibold"><span class="d-inline-block rounded me-2" style="width: 12px; height: 12px; background: #dc3545;"></span>Token-Based</p>
+                        <p class="mb-0 small text-secondary" id="token-chart-detail">Run the token test to decode the JWT payload and count exposed claims.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="exposure-alert" class="alert alert-warning d-none mt-4" role="alert"></div>
+
+    <div class="row row-cols-1 row-cols-lg-2 gx-4 gy-4 mt-4">
+        <div class="col">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h2 class="h5 mb-2">Session Exposure Summary</h2>
+                    <p class="text-secondary mb-3">This analysis inspects the captured session ID itself and counts any identity fields embedded in the credential string.</p>
+                    <dl class="row mb-0">
+                        <dt class="col-6">Session found</dt>
+                        <dd class="col-6" id="session-found">—</dd>
+                        <dt class="col-6">Payload bytes</dt>
+                        <dd class="col-6" id="session-bytes">—</dd>
+                        <dt class="col-6">Exposed fields</dt>
+                        <dd class="col-6" id="session-fields">—</dd>
+                        <dt class="col-6">Embedded fields</dt>
+                        <dd class="col-6" id="session-field-list">—</dd>
+                        <dt class="col-6">Session ID length</dt>
+                        <dd class="col-6" id="session-id-length">—</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        <div class="col">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h2 class="h5 mb-2">Token Exposure Summary</h2>
+                    <p class="text-secondary mb-3">This analysis decodes the captured JWT payload and counts the identity claims exposed in the token.</p>
+                    <dl class="row mb-0">
+                        <dt class="col-6">Token found</dt>
+                        <dd class="col-6" id="token-found">—</dd>
+                        <dt class="col-6">Token length</dt>
+                        <dd class="col-6" id="token-length">—</dd>
+                        <dt class="col-6">Exposed claims</dt>
+                        <dd class="col-6" id="token-elements">—</dd>
+                        <dt class="col-6">Claim list</dt>
+                        <dd class="col-6" id="token-claim-list">—</dd>
+                        <dt class="col-6">User ID</dt>
+                        <dd class="col-6" id="token-user-id">—</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mt-4">
+        <div class="card-body">
+            <h2 class="h5 mb-2">Comparison Summary</h2>
+            <p class="mb-0 text-secondary">Session-based authentication keeps most identity state on the server, while token-based authentication relies on a client-held credential that can be exposed more easily if copied, logged, or intercepted.</p>
+        </div>
+    </div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const sessionInput = document.getElementById('captured-session');
+        const tokenInput = document.getElementById('captured-token');
+        const analyzeTokenButton = document.getElementById('analyze-token-risk');
+        const analyzeSessionButton = document.getElementById('analyze-session-risk');
+        const exposureAlert = document.getElementById('exposure-alert');
+        const analyzeUrl = "{{ route('dashboard.data-exposure-risk.analyze') }}";
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        const chartCanvas = document.getElementById('exposureRiskChart');
+        const chartLegend = document.getElementById('chart-legend');
+        let exposureChart = null;
+        const chartState = {
+            sessionCount: null,
+            tokenCount: null,
+            sessionFields: [],
+            tokenFields: [],
+        };
+
+        const valueLabelPlugin = {
+            id: 'valueLabel',
+            afterDatasetsDraw(chart) {
+                const { ctx } = chart;
+                ctx.save();
+                ctx.font = 'bold 14px Inter, system-ui, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+
+                chart.data.datasets.forEach((dataset, datasetIndex) => {
+                    chart.getDatasetMeta(datasetIndex).data.forEach((bar, index) => {
+                        const value = dataset.data[index];
+                        if (value === null || value === undefined) {
+                            return;
+                        }
+
+                        ctx.fillStyle = index === 0 ? '#2563eb' : '#dc3545';
+                        ctx.fillText(String(value), bar.x, bar.y - 6);
+                    });
+                });
+
+                ctx.restore();
+            },
+        };
+
+        function showAlert(message) {
+            exposureAlert.textContent = message;
+            exposureAlert.classList.remove('d-none');
+        }
+
+        function hideAlert() {
+            exposureAlert.classList.add('d-none');
+            exposureAlert.textContent = '';
+        }
+
+        function formatFieldList(fields) {
+            if (!fields || fields.length === 0) {
+                return 'None detected';
+            }
+
+            return fields.join(', ');
+        }
+
+        function renderExposureChart() {
+            const labels = ['Session-Based', 'Token-Based'];
+            const values = [
+                chartState.sessionCount ?? 0,
+                chartState.tokenCount ?? 0,
+            ];
+            const colors = ['#2563eb', '#dc3545'];
+            const maxValue = Math.max(6, ...values, 1);
+
+            if (!exposureChart) {
+                exposureChart = new Chart(chartCanvas.getContext('2d'), {
+                    type: 'bar',
+                    plugins: [valueLabelPlugin],
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Exposed fields',
+                            data: values,
+                            backgroundColor: colors,
+                            borderRadius: 4,
+                            maxBarThickness: 120,
+                        }],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function (context) {
+                                        return `Exposed fields: ${context.parsed.y}`;
+                                    },
+                                },
+                            },
+                        },
+                        scales: {
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Authentication Method',
+                                },
+                            },
+                            y: {
+                                beginAtZero: true,
+                                suggestedMax: maxValue,
+                                ticks: {
+                                    stepSize: 1,
+                                    precision: 0,
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Number of Exposed Fields (Counts)',
+                                },
+                            },
+                        },
+                    },
+                });
+            } else {
+                exposureChart.data.datasets[0].data = values;
+                exposureChart.options.scales.y.suggestedMax = maxValue;
+                exposureChart.update();
+            }
+
+            if (chartState.sessionCount !== null || chartState.tokenCount !== null) {
+                chartLegend.classList.remove('d-none');
+            }
+        }
+
+        function updateSessionSummary(sessionData) {
+            document.getElementById('session-found').textContent = sessionData?.found ? 'Yes' : 'No';
+            document.getElementById('session-bytes').textContent = sessionData?.payload_bytes ?? '—';
+            document.getElementById('session-fields').textContent = sessionData?.exposed_field_count ?? '—';
+            document.getElementById('session-field-list').textContent = formatFieldList(sessionData?.exposed_fields);
+            document.getElementById('session-id-length').textContent = sessionData?.session_id_length ?? '—';
+
+            if (sessionData?.analyzed) {
+                document.getElementById('session-chart-detail').textContent =
+                    `IES = ${sessionData.exposed_field_count} (${formatFieldList(sessionData.exposed_fields)})`;
+            }
+        }
+
+        function updateTokenSummary(tokenData) {
+            document.getElementById('token-found').textContent = tokenData?.found ? 'Yes' : 'No';
+            document.getElementById('token-length').textContent = tokenData?.token_length ?? '—';
+            document.getElementById('token-elements').textContent = tokenData?.exposed_field_count ?? '—';
+            document.getElementById('token-claim-list').textContent = formatFieldList(tokenData?.exposed_fields);
+            document.getElementById('token-user-id').textContent = tokenData?.user_id ?? '—';
+
+            if (tokenData?.analyzed) {
+                document.getElementById('token-chart-detail').textContent =
+                    `IES = ${tokenData.exposed_field_count} (${formatFieldList(tokenData.exposed_fields)})`;
+            }
+        }
+
+        async function analyzeCredential(payload) {
+            hideAlert();
+
+            try {
+                const response = await fetch(analyzeUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    showAlert(error.message || 'Unable to analyze credentials.');
+                    return null;
+                }
+
+                return await response.json();
+            } catch (error) {
+                showAlert('Unable to reach the analysis service.');
+                return null;
+            }
+        }
+
+        analyzeSessionButton.addEventListener('click', async () => {
+            const sessionId = sessionInput.value.trim();
+
+            if (!sessionId) {
+                showAlert('Enter a captured session ID to analyze.');
+                return;
+            }
+
+            const data = await analyzeCredential({ session_id: sessionId });
+            if (!data?.session) {
+                return;
+            }
+
+            chartState.sessionCount = data.session.exposed_field_count;
+            chartState.sessionFields = data.session.exposed_fields || [];
+            updateSessionSummary(data.session);
+            renderExposureChart();
+        });
+
+        analyzeTokenButton.addEventListener('click', async () => {
+            const token = tokenInput.value.trim();
+
+            if (!token) {
+                showAlert('Enter a captured token to analyze.');
+                return;
+            }
+
+            const data = await analyzeCredential({ token });
+            if (!data?.token) {
+                return;
+            }
+
+            chartState.tokenCount = data.token.exposed_field_count;
+            chartState.tokenFields = data.token.exposed_fields || [];
+            updateTokenSummary(data.token);
+            renderExposureChart();
+        });
+
+        renderExposureChart();
+    });
+</script>
 @endsection

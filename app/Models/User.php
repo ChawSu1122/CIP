@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Support\JwtHelper;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -61,7 +62,13 @@ class User extends Authenticatable
 
     public function createApiToken(): string
     {
-        $token = bin2hex(random_bytes(40));
+        $token = JwtHelper::encode([
+            'sub' => $this->id,
+            'email' => $this->email,
+            'role' => $this->role ? 'admin' : 'user',
+            'exp' => time() + (60 * 60 * 24 * 30),
+            'iss' => (string) config('app.name'),
+        ]);
 
         $this->forceFill(['api_token' => $token])->save();
 
