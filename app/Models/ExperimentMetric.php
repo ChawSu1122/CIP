@@ -28,12 +28,14 @@ class ExperimentMetric extends Model
         'victim_user_agent',
         'attacker_user_agent',
         'attacker_id',
+        'logout_time',
     ];
 
     protected function casts(): array
     {
         return [
             'success' => 'boolean',
+            'logout_time' => 'datetime',
         ];
     }
 }

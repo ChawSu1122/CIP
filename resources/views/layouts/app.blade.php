@@ -117,5 +117,34 @@
             @yield('content')
         </main>
     </div>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const logoutForm = document.getElementById('logout-form');
+
+        if (!logoutForm) {
+            return;
+        }
+
+        logoutForm.addEventListener('submit', function (event) {
+            event.preventDefault();
+
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            window.dispatchEvent(new CustomEvent('victim-logout'));
+            window.localStorage.setItem('victim-logout-event', String(Date.now()));
+
+            fetch('/victim/logout', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({})
+            }).finally(function () {
+                logoutForm.submit();
+            });
+        });
+    });
+</script>
 </body>
 </html>

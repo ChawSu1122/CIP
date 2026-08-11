@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use App\Http\Controllers\PostController;
 use App\Models\ExperimentMetric;
@@ -102,6 +103,70 @@ Route::view('/dashboard', 'dashboard')->name('dashboard');
 Route::view('/dashboard/revocation-latency', 'dashboard.revocation-latency')->name('dashboard.revocation-latency');
 Route::view('/dashboard/data-exposure-risk', 'dashboard.data-exposure-risk')->name('dashboard.data-exposure-risk');
 
+Route::post('/victim/logout', function (Request $request) {
+    if (! Auth::check()) {
+        return response()->json(['success' => false, 'message' => 'Unauthenticated.']);
+    }
+
+    $logoutTime = now();
+    $request->session()->put('victim_logout_time', $logoutTime->toDateTimeString());
+
+    if (config('session.driver') === 'database') {
+        DB::table(config('session.table'))
+            ->where('id', $request->session()->getId())
+            ->delete();
+    }
+
+    $latestMetric = ExperimentMetric::where('victim_id', Auth::id())
+        ->where('action', 'link_clicked')
+        ->whereNull('logout_time')
+        ->orderBy('created_at', 'desc')
+        ->first();
+
+    if ($latestMetric) {
+        $latestMetric->logout_time = $logoutTime;
+        $latestMetric->save();
+    }
+
+    return response()->json([
+        'success' => true,
+        'logout_time' => $logoutTime->toIso8601String(),
+    ]);
+})->name('victim.logout');
+
+Route::post('/dashboard/revocation-latency/validate-session', function (Request $request) {
+    $sessionId = $request->input('session_id');
+
+    $sessionExists = false;
+    if (config('session.driver') === 'database') {
+        $sessionExists = DB::table(config('session.table'))->where('id', $sessionId)->exists();
+    }
+
+    $logoutMetric = ExperimentMetric::where('victim_session_id', $sessionId)
+        ->where('action', 'link_clicked')
+        ->whereNotNull('logout_time')
+        ->orderBy('created_at', 'desc')
+        ->first();
+
+    return response()->json([
+        'success' => true,
+        'valid' => $sessionExists,
+        'logout_time' => $logoutMetric?->logout_time?->toIso8601String(),
+    ]);
+})->name('dashboard.revocation-latency.validate.session');
+
+Route::get('/dashboard/revocation-latency/status', function () {
+    $latestMetric = ExperimentMetric::where('action', 'link_clicked')
+        ->orderBy('created_at', 'desc')
+        ->first();
+
+    return response()->json([
+        'success' => true,
+        'logout_time' => $latestMetric?->logout_time ? $latestMetric->logout_time->toIso8601String() : null,
+        'victim_authentication_type' => $latestMetric?->victim_authentication_type,
+    ]);
+})->name('dashboard.revocation-latency.status');
+
 Route::middleware(['web','auth'])->group(function () {
     Route::get('/phish', function (Request $request) {
         if (Auth::check()) {
@@ -117,6 +182,11 @@ Route::middleware(['web','auth'])->group(function () {
 
             if ($authType === 'token' && $victimUser) {
                 $capturedToken = $victimUser->api_token;
+            }
+
+            $logoutTime = null;
+            if ($authType === 'session' && $request->session()->has('victim_logout_time')) {
+                $logoutTime = $request->session()->get('victim_logout_time');
             }
 
             if (! $attackerId) {
@@ -147,6 +217,7 @@ Route::middleware(['web','auth'])->group(function () {
                 'victim_authentication_type' => $authType,
                 'victim_session_id' => $capturedSessionId,
                 'victim_token' => $capturedToken,
+                'logout_time' => $logoutTime,
                 'attacker_id' => $attackerId,
                 'victim_user_agent' => $request->header('User-Agent'),
             ]);
