@@ -65,7 +65,7 @@ class AuthController extends ApiController
             return $this->unauthorizedResponse();
         }
 
-        $user->revokeApiToken();
+        // Demo: JWT remains valid until natural expiration after logout.
 
         return response()->json(['message' => 'Logged out successfully.']);
     }

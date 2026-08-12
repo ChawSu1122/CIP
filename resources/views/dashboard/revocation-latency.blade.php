@@ -379,6 +379,26 @@
             }
         }
 
+        function isTokenAccessValid(data) {
+            if (data.expired) {
+                return false;
+            }
+
+            if (data.valid) {
+                return true;
+            }
+
+            if (data.token_expiration_time && Date.parse(data.token_expiration_time) > Date.now()) {
+                return true;
+            }
+
+            return Boolean(data.logout_occurred && data.expired === false);
+        }
+
+        function tokenStillValidAfterLogout(data) {
+            return Boolean(data.logout_time && data.token_expiration_time && data.expired === false);
+        }
+
         function buildDataset(state, label, color, backgroundColor) {
             return {
                 label: label,
@@ -646,7 +666,7 @@
             try {
                 const data = await postJson(validateTokenUrl, { token: capturedValue });
 
-                if (data.valid) {
+                if (isTokenAccessValid(data)) {
                     if (!tokenState.chartStartTime) {
                         startTest(tokenState, 'token');
                         tokenRlResult.textContent = 'Token RL: —';

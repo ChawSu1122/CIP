@@ -13,13 +13,22 @@ class ApiController extends Controller
     {
         $authorization = $request->header('Authorization', '');
 
-        if (!str_starts_with($authorization, 'Bearer ')) {
+        if (! str_starts_with($authorization, 'Bearer ')) {
             return null;
         }
 
         $token = substr($authorization, 7);
+        $user = User::where('api_token', $token)->first();
 
-        return User::where('api_token', $token)->first();
+        if ($user) {
+            return $user;
+        }
+
+        if (\App\Support\JwtHelper::isValidToken($token)) {
+            return User::find(\App\Support\JwtHelper::getSubjectId($token));
+        }
+
+        return null;
     }
 
     protected function unauthorizedResponse(): JsonResponse
