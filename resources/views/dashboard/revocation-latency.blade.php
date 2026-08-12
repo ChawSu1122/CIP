@@ -190,6 +190,7 @@
         const resetCookieName = 'revocation_latency_reset';
         const validateSessionUrl = "{{ route('dashboard.revocation-latency.validate.session') }}";
         const validateTokenUrl = "{{ route('dashboard.revocation-latency.validate.token') }}";
+        const resetCapturedCredentialsUrl = "{{ route('dashboard.revocation-latency.reset-captured-credentials') }}";
         const securityAlertUrl = "{{ route('dashboard.revocation-latency.security-alert') }}";
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         const xAxisMax = 6;
@@ -546,8 +547,16 @@
             }
         }
 
+        function resetStoredLogoutMarkers() {
+            window.localStorage.removeItem(sessionLogoutEventKey);
+            window.localStorage.removeItem(tokenLogoutEventKey);
+            sessionLogoutTimeMs = null;
+            tokenLogoutTimeMs = null;
+        }
+
         function resetAttackBoxes() {
             window.localStorage.setItem(resetMarkerKey, String(Date.now()));
+            resetStoredLogoutMarkers();
 
             sessionInput.value = '';
             tokenInput.value = '';
@@ -592,6 +601,7 @@
 
         function resetChartData() {
             chartMarkers.length = 0;
+            resetStoredLogoutMarkers();
             Object.assign(sessionState, createTracker());
             Object.assign(tokenState, createTracker());
             sessionRlResult.textContent = 'Session RL: —';
@@ -686,7 +696,7 @@
                 }),
                 borderColor: color,
                 backgroundColor: backgroundColor,
-                stepped: 'after',
+                stepped: false,
                 fill: false,
                 tension: 0,
                 pointRadius: state.samplePoints.length ? 4 : 0,
@@ -780,6 +790,14 @@
 
         function startTest(state, type, startTimeMs) {
             clearMarkers(type);
+            if (type === 'session') {
+                window.localStorage.removeItem(sessionLogoutEventKey);
+                sessionLogoutTimeMs = null;
+            }
+            if (type === 'token') {
+                window.localStorage.removeItem(tokenLogoutEventKey);
+                tokenLogoutTimeMs = null;
+            }
             state.chartStartTime = startTimeMs || Date.now();
             state.samplePoints = [{ x: 0, y: 1 }];
             state.denialRecorded = false;
@@ -810,7 +828,6 @@
                     options.markerStyle || 'callout'
                 );
                 state.logoutMarkerAdded = true;
-                appendPoint(state, logoutMinute, 1);
 
                 if (options.updateRl) {
                     options.updateRl(data);
@@ -840,14 +857,9 @@
                 const logoutMinute = toMinutes(sessionState.chartStartTime, logoutTimeMs);
                 addMarker(logoutMinute, 'Session User Logout', '#7c3aed', 'session', 'callout');
                 sessionState.logoutMarkerAdded = true;
-                appendPoint(sessionState, logoutMinute, 0);
-
-                if (denialMinute > logoutMinute) {
-                    appendPoint(sessionState, denialMinute, 0);
-                }
-            } else {
-                appendPoint(sessionState, denialMinute, 0);
             }
+
+            appendPoint(sessionState, denialMinute, 0);
 
             updateSessionRL(
                 { logout_time: logoutTimeMs ? new Date(logoutTimeMs).toISOString() : data.logout_time },
@@ -871,7 +883,6 @@
                 sessionState.logoutMarkerAdded = true;
             }
 
-            appendPoint(sessionState, logoutMinute, 0);
             updateSessionRL(
                 { logout_time: new Date(sessionLogoutTimeMs).toISOString() },
                 Date.now()
@@ -896,7 +907,6 @@
                 'callout'
             );
             tokenState.logoutMarkerAdded = true;
-            appendPoint(tokenState, logoutMinute, 1);
             updateTokenRL({
                 logout_time: new Date(tokenLogoutTimeMs).toISOString(),
                 token_expiration_time: lastTokenValidation?.token_expiration_time || null,
@@ -955,13 +965,37 @@
             return response.json();
         }
 
-        resetAttackBoxesButton.addEventListener('click', function (event) {
+        resetAttackBoxesButton.addEventListener('click', async function (event) {
             event.preventDefault();
+            try {
+                await fetch(resetCapturedCredentialsUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                    },
+                });
+            } catch (error) {
+                console.error('Failed to clear captured phishing credentials.', error);
+            }
             resetAttackBoxes();
         });
 
-        resetChartButton.addEventListener('click', function (event) {
+        resetChartButton.addEventListener('click', async function (event) {
             event.preventDefault();
+            try {
+                await fetch(resetCapturedCredentialsUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                    },
+                });
+            } catch (error) {
+                console.error('Failed to clear captured phishing credentials.', error);
+            }
             clearResetCookie();
             resetChartData();
         });

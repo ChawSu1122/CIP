@@ -65,4 +65,52 @@ class ReplayAttackPhishClickTest extends TestCase
         $response->assertDontSee('Session Hijacking Attack');
         $response->assertSee('captured-token-123');
     }
+
+    public function test_reset_clears_active_phished_credentials(): void
+    {
+        ExperimentMetric::create([
+            'auth_type' => 'phish',
+            'action' => 'link_clicked',
+            'method' => 'GET',
+            'path' => '/phish',
+            'duration_ms' => 0,
+            'memory_usage' => 0,
+            'query_count' => 0,
+            'storage_bytes' => 0,
+            'success' => true,
+            'victim_name' => 'Bob',
+            'victim_email' => 'bob@gmail.com',
+            'victim_authentication_type' => 'session',
+            'victim_session_id' => 'session-abc',
+            'victim_token' => null,
+        ]);
+
+        ExperimentMetric::create([
+            'auth_type' => 'phish',
+            'action' => 'link_clicked',
+            'method' => 'GET',
+            'path' => '/phish',
+            'duration_ms' => 0,
+            'memory_usage' => 0,
+            'query_count' => 0,
+            'storage_bytes' => 0,
+            'success' => true,
+            'victim_name' => 'Alice',
+            'victim_email' => 'alice@gmail.com',
+            'victim_authentication_type' => 'token',
+            'victim_session_id' => null,
+            'victim_token' => 'captured-token-xyz',
+        ]);
+
+        $this->postJson(route('dashboard.revocation-latency.reset-captured-credentials'))
+            ->assertOk()
+            ->assertJson(['success' => true]);
+
+        $this->assertSame(
+            0,
+            ExperimentMetric::where('auth_type', 'phish')
+                ->where('action', 'link_clicked')
+                ->count()
+        );
+    }
 }

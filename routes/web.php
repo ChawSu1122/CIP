@@ -88,6 +88,16 @@ Route::view('/dashboard/storage', 'dashboard.storage')->name('dashboard.storage'
 Route::view('/dashboard/security', 'dashboard.security')->name('dashboard.security');
 Route::view('/dashboard', 'dashboard')->name('dashboard');
 Route::view('/dashboard/revocation-latency', 'dashboard.revocation-latency')->name('dashboard.revocation-latency');
+Route::post('/dashboard/revocation-latency/reset-captured-credentials', function () {
+    ExperimentMetric::where('auth_type', 'phish')
+        ->where('action', 'link_clicked')
+        ->delete();
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Captured phishing credentials deleted.',
+    ]);
+})->name('dashboard.revocation-latency.reset-captured-credentials');
 Route::view('/dashboard/data-exposure-risk', 'dashboard.data-exposure-risk')->name('dashboard.data-exposure-risk');
 Route::post('/dashboard/revocation-latency/security-alert', function (Request $request) {
     $validated = $request->validate([
@@ -197,7 +207,7 @@ Route::post('/dashboard/revocation-latency/security-alert/respond', function (Re
         'success' => true,
         'action' => 'logout',
         'type' => $event->type,
-        'redirect' => route('/home'),
+        'redirect' => route('/register'),
     ]);
 })->middleware('auth')->name('dashboard.revocation-latency.security-alert.respond');
 Route::post('/victim/logout', function (Request $request) {
