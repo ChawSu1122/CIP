@@ -21,16 +21,21 @@
     $token_victim_name = $tokenPhish?->victim_name ?? '—';
     $token_victim_token = $tokenPhish?->victim_token ?? '—';
     $token_phish_time = $tokenPhish?->created_at?->format('Y-m-d H:i:s') ?? '—';
+    $token_phish_ts = $tokenPhish?->created_at?->valueOf() ?? null;
 
     $session_victim_name = $sessionPhish?->victim_name ?? '—';
     $session_victim_session = $sessionPhish?->victim_session_id ?? '—';
     $session_phish_time = $sessionPhish?->created_at?->format('Y-m-d H:i:s') ?? '—';
+    $session_phish_ts = $sessionPhish?->created_at?->valueOf() ?? null;
 @endphp
 
-<div class="mb-3">
+<div class="d-flex justify-content-between align-items-start align-items-lg-center flex-wrap gap-3 mb-3">
+    <div>
         <h1 class="page-title">Revocation Latency</h1>
         <p class="page-copy">This page compares attack flows side by side, highlighting how token and session hijacking behave when revocation latency matters.</p>
     </div>
+    <button id="reset-attack-boxes-btn" type="button" class="btn btn-outline-secondary btn-sm">Reset</button>
+</div>
 
 <div class="row row-cols-1 row-cols-lg-2 gx-4 gy-4 mt-3">
     <div class="col">
@@ -43,28 +48,28 @@
                 <li class="list-group-item py-3">
                     <div class="d-flex justify-content-between align-items-center gap-3">
                         <span class="text-secondary">Browser A (victim)</span>
-                        <span class="fw-semibold">@if($tokenPhish) {{ $token_victim_name }} is logged in and clicks the phishing link. @else — @endif</span>
+                        <span id="token-victim-status" class="fw-semibold">@if($tokenPhish) {{ $token_victim_name }} is logged in and clicks the phishing link. @else — @endif</span>
                     </div>
                 </li>
 
                 <li class="list-group-item py-3">
                     <div class="d-flex justify-content-between align-items-center gap-3">
                         <span class="text-secondary">Captured token ID</span>
-                        <span class="fw-semibold text-break">@if($tokenPhish) {{ $token_victim_token }} @else — @endif</span>
+                        <span id="token-victim-token" class="fw-semibold text-break">@if($tokenPhish) {{ $token_victim_token }} @else — @endif</span>
                     </div>
                 </li>
 
                 <li class="list-group-item py-3">
                     <div class="d-flex justify-content-between align-items-center gap-3">
                         <span class="text-secondary">Authentication Method</span>
-                        <span class="fw-semibold">@if($tokenPhish) Token-Based @else — @endif</span>
+                        <span id="token-auth-method" class="fw-semibold">@if($tokenPhish) Token-Based @else — @endif</span>
                     </div>
                 </li>
 
                 <li class="list-group-item py-3">
                     <div class="d-flex justify-content-between align-items-center gap-3">
                         <span class="text-secondary">Time</span>
-                        <span class="fw-semibold">@if($tokenPhish) {{ $token_phish_time }} @else — @endif</span>
+                        <span id="token-phish-time" class="fw-semibold">@if($tokenPhish) {{ $token_phish_time }} @else — @endif</span>
                     </div>
                 </li>
 
@@ -91,28 +96,28 @@
                 <li class="list-group-item py-3">
                     <div class="d-flex justify-content-between align-items-center gap-3">
                         <span class="text-secondary">Browser A (victim)</span>
-                        <span class="fw-semibold">@if($sessionPhish) {{ $session_victim_name }} is logged in and clicks the phishing link. @else — @endif</span>
+                        <span id="session-victim-status" class="fw-semibold">@if($sessionPhish) {{ $session_victim_name }} is logged in and clicks the phishing link. @else — @endif</span>
                     </div>
                 </li>
 
                 <li class="list-group-item py-3">
                     <div class="d-flex justify-content-between align-items-center gap-3">
                         <span class="text-secondary">Captured session ID</span>
-                        <span class="fw-semibold text-break">@if($sessionPhish) {{ $session_victim_session }} @else — @endif</span>
+                        <span id="session-victim-session" class="fw-semibold text-break">@if($sessionPhish) {{ $session_victim_session }} @else — @endif</span>
                     </div>
                 </li>
 
                 <li class="list-group-item py-3">
                     <div class="d-flex justify-content-between align-items-center gap-3">
                         <span class="text-secondary">Authentication Method</span>
-                        <span class="fw-semibold">@if($sessionPhish) Session-Based @else — @endif</span>
+                        <span id="session-auth-method" class="fw-semibold">@if($sessionPhish) Session-Based @else — @endif</span>
                     </div>
                 </li>
 
                 <li class="list-group-item py-3">
                     <div class="d-flex justify-content-between align-items-center gap-3">
                         <span class="text-secondary">Time</span>
-                        <span class="fw-semibold">@if($sessionPhish) {{ $session_phish_time }} @else — @endif</span>
+                        <span id="session-phish-time" class="fw-semibold">@if($sessionPhish) {{ $session_phish_time }} @else — @endif</span>
                     </div>
                 </li>
 
@@ -128,6 +133,10 @@
             </div>
         </div>
     </div>
+</div>
+
+<div class="d-flex justify-content-end mt-4">
+    <button id="reset-chart-btn" type="button" class="btn btn-outline-secondary btn-sm">Reset</button>
 </div>
 
 <div id="chart-alert" class="alert alert-warning d-none mt-4" role="alert"></div>
@@ -159,16 +168,32 @@
         const tokenButton = document.getElementById('unauthorized-token-btn');
         const sessionInput = document.getElementById('captured-session');
         const tokenInput = document.getElementById('captured-token');
+        const tokenVictimStatus = document.getElementById('token-victim-status');
+        const tokenVictimToken = document.getElementById('token-victim-token');
+        const tokenAuthMethod = document.getElementById('token-auth-method');
+        const tokenPhishTime = document.getElementById('token-phish-time');
+        const sessionVictimStatus = document.getElementById('session-victim-status');
+        const sessionVictimSession = document.getElementById('session-victim-session');
+        const sessionAuthMethod = document.getElementById('session-auth-method');
+        const sessionPhishTime = document.getElementById('session-phish-time');
         const chartSection = document.getElementById('chart-section');
+
+        document.cookie = 'revocation_latency_reset=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
         const chartAlert = document.getElementById('chart-alert');
         const chartCanvas = document.getElementById('revocationChart');
         const sessionRlResult = document.getElementById('session-rl-result');
         const tokenRlResult = document.getElementById('token-rl-result');
+        const resetAttackBoxesButton = document.getElementById('reset-attack-boxes-btn');
+        const resetChartButton = document.getElementById('reset-chart-btn');
+        const resetCookieName = 'revocation_latency_reset';
         const validateSessionUrl = "{{ route('dashboard.revocation-latency.validate.session') }}";
         const validateTokenUrl = "{{ route('dashboard.revocation-latency.validate.token') }}";
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         const xAxisMax = 6;
         const logoutEventKey = 'victim-logout-event';
+        const resetMarkerKey = 'revocation-latency-attack-reset';
+        const tokenPhishTs = @json($token_phish_ts);
+        const sessionPhishTs = @json($session_phish_ts);
 
         let revocationChart = null;
         const chartMarkers = [];
@@ -351,6 +376,72 @@
 
         function ensureChartVisible() {
             chartSection.classList.remove('d-none');
+        }
+
+        function clearResetCookie() {
+            document.cookie = `${resetCookieName}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
+        }
+
+        function resetAttackBoxes() {
+            window.localStorage.setItem(resetMarkerKey, String(Date.now()));
+
+            sessionInput.value = '';
+            tokenInput.value = '';
+            sessionInput.dispatchEvent(new Event('input', { bubbles: true }));
+            tokenInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+            if (tokenVictimStatus) tokenVictimStatus.textContent = '—';
+            if (tokenVictimToken) tokenVictimToken.textContent = '—';
+            if (tokenAuthMethod) tokenAuthMethod.textContent = '—';
+            if (tokenPhishTime) tokenPhishTime.textContent = '—';
+
+            if (sessionVictimStatus) sessionVictimStatus.textContent = '—';
+            if (sessionVictimSession) sessionVictimSession.textContent = '—';
+            if (sessionAuthMethod) sessionAuthMethod.textContent = '—';
+            if (sessionPhishTime) sessionPhishTime.textContent = '—';
+
+            clearResetCookie();
+            hideAlert();
+        }
+
+        function shouldSuppressAttackBoxes() {
+            const resetTs = Number(window.localStorage.getItem(resetMarkerKey) || '0');
+
+            if (!resetTs) {
+                return false;
+            }
+
+            // If a new phish event happened after the reset, show the fresh data again.
+            if ((tokenPhishTs && tokenPhishTs > resetTs) || (sessionPhishTs && sessionPhishTs > resetTs)) {
+                return false;
+            }
+
+            return true;
+        }
+
+        // Keep the attack boxes cleared on page refresh until a new phish event arrives.
+        if (shouldSuppressAttackBoxes()) {
+            resetAttackBoxes();
+        }
+
+        function resetChartData() {
+            chartMarkers.length = 0;
+            Object.assign(sessionState, createTracker());
+            Object.assign(tokenState, createTracker());
+            sessionRlResult.textContent = 'Session RL: —';
+            tokenRlResult.textContent = 'Token RL: —';
+            hideAlert();
+
+            if (revocationChart) {
+                revocationChart.data.datasets = [
+                    buildDataset(sessionState, 'Session (Immediate Revocation)', '#2563eb', 'rgba(37, 99, 235, 0.08)'),
+                    buildDataset(tokenState, 'Token (Expires After 5 Minutes)', '#dc3545', 'rgba(220, 53, 69, 0.08)'),
+                ];
+                revocationChart.update();
+            } else {
+                ensureChartVisible();
+                renderChart();
+            }
         }
 
         function scrollToChart() {
@@ -641,6 +732,17 @@
             return response.json();
         }
 
+        resetAttackBoxesButton.addEventListener('click', function (event) {
+            event.preventDefault();
+            resetAttackBoxes();
+        });
+
+        resetChartButton.addEventListener('click', function (event) {
+            event.preventDefault();
+            clearResetCookie();
+            resetChartData();
+        });
+
         sessionButton.addEventListener('click', async function () {
             const capturedValue = sessionInput.value.trim();
 
@@ -688,6 +790,14 @@
 
             try {
                 const data = await postJson(validateTokenUrl, { token: capturedValue });
+
+                // If the server refreshed the token, keep the form/display in sync so the
+                // 5-minute countdown restarts on every click.
+                if (data.token && data.token !== capturedValue) {
+                    tokenInput.value = data.token;
+                    if (tokenVictimToken) tokenVictimToken.textContent = data.token;
+                }
+
                 const hasVictimLogout = Boolean(victimLogoutTimeMs);
                 const logoutValue = hasVictimLogout ? new Date(victimLogoutTimeMs).toISOString() : null;
                 const tokenData = {
