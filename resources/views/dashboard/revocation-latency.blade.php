@@ -155,8 +155,9 @@
         <div class="border rounded p-3 mt-4 bg-light">
             <p class="mb-2"><strong>Description:</strong> Session access is invalidated immediately when the victim logs out. Token access remains valid until the JWT naturally expires (5 minutes in this demonstration), even after logout.</p>
             <p class="mb-1"><strong>Metric for Calculation:</strong> Revocation Latency (RL)</p>
-            <p class="mb-1"><strong>Session RL Calculation:</strong> Time of first denied request − User Logout Time</p>
-            <p class="mb-1"><strong>Token RL Calculation:</strong> Token Expiration Time − User Logout Time</p>
+            <p class="mb-1"><strong>Definition:</strong> Revocation latency is the time between a decision to remove access and the point at which that access is actually gone.</p>
+            <p class="mb-1"><strong>Session RL Calculation:</strong>  Access Invalidated Time − Revocation Time</p>
+            <p class="mb-1"><strong>Token RL Calculation:</strong> Access Invalidated Time − Revocation Time</p>
             <p class="mb-1" id="session-rl-result">Session RL: —</p>
             <p class="mb-0" id="token-rl-result">Token RL: —</p>
         </div>
