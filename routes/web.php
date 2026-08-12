@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use App\Http\Controllers\PostController;
 use App\Models\ExperimentMetric;
@@ -10,6 +11,8 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ThesisController;
 use App\Http\Controllers\ReplayAttackController;
 use App\Models\User;
+use App\Support\JwtHelper;
+use App\Services\CredentialExposureAnalyzer;
 
 // Authentication Routes
 Auth::routes();
@@ -80,6 +83,109 @@ Route::view('/token-demo', 'token-demo')->name('token.demo');
 Route::view('/dashboard/scalability', 'dashboard.scalability')->name('dashboard.scalability');
 Route::view('/dashboard/storage', 'dashboard.storage')->name('dashboard.storage');
 Route::view('/dashboard/security', 'dashboard.security')->name('dashboard.security');
+Route::view('/dashboard', 'dashboard')->name('dashboard');
+Route::view('/dashboard/revocation-latency', 'dashboard.revocation-latency')->name('dashboard.revocation-latency');
+Route::view('/dashboard/data-exposure-risk', 'dashboard.data-exposure-risk')->name('dashboard.data-exposure-risk');
+Route::post('/dashboard/revocation-latency/logout/token', function (Request $request) {
+    $token = trim((string) $request->input('token', ''));
+    $logoutTime = now()->toIso8601String();
+
+    if ($token !== '') {
+        $request->session()->put('dashboard_revocation_token_logout_time', $logoutTime);
+        $request->session()->put('dashboard_revocation_last_token', $token);
+    }
+
+    return response()->json([
+        'success' => true,
+        'logout_time' => $logoutTime,
+        'message' => 'Victim logout recorded. The JWT was removed from the client and remains valid until its original expiration time.',
+    ]);
+})->name('dashboard.revocation-latency.logout.token');
+Route::post('/dashboard/revocation-latency/validate/session', function (Request $request) {
+    $sessionId = trim((string) $request->input('session_id', ''));
+
+    if ($sessionId === '') {
+        return response()->json([
+            'valid' => false,
+            'expired' => true,
+            'logout_occurred' => false,
+            'logout_time' => null,
+            'token_expiration_time' => null,
+            'revocation_latency_seconds' => null,
+        ], 422);
+    }
+
+    $session = DB::table('sessions')->where('id', $sessionId)->first();
+    $isValid = $session && $session->last_activity >= (time() - (config('session.lifetime') * 60));
+
+    return response()->json([
+        'valid' => $isValid,
+        'expired' => ! $isValid,
+        'logout_occurred' => false,
+        'logout_time' => null,
+        'token_expiration_time' => null,
+        'revocation_latency_seconds' => null,
+    ]);
+})->name('dashboard.revocation-latency.validate.session');
+Route::post('/dashboard/revocation-latency/validate/token', function (Request $request) {
+    $token = trim((string) $request->input('token', ''));
+
+    if ($token === '') {
+        return response()->json([
+            'valid' => false,
+            'expired' => true,
+            'logout_occurred' => false,
+            'logout_time' => null,
+            'token_expiration_time' => null,
+            'revocation_latency_seconds' => null,
+        ], 422);
+    }
+
+    $payload = JwtHelper::decodePayload($token);
+    $exp = $payload['exp'] ?? null;
+    $expired = JwtHelper::isExpired($token) || ! JwtHelper::verifySignature($token) || $payload === null;
+    $logoutTime = $request->session()->get('dashboard_revocation_token_logout_time');
+    $logoutOccurred = ! empty($logoutTime);
+
+    return response()->json([
+        'valid' => ! $expired,
+        'expired' => $expired,
+        'logout_occurred' => $logoutOccurred,
+        'logout_time' => $logoutTime,
+        'token_expiration_time' => $exp ? gmdate('Y-m-d\TH:i:s\Z', (int) $exp) : null,
+        'revocation_latency_seconds' => null,
+    ]);
+})->name('dashboard.revocation-latency.validate.token');
+
+Route::post('/dashboard/data-exposure-risk/analyze', function (Request $request, CredentialExposureAnalyzer $analyzer) {
+    $validated = $request->validate([
+        'session_id' => 'nullable|string|min:5',
+        'token' => 'nullable|string|min:5',
+    ]);
+
+    if (empty($validated['session_id']) && empty($validated['token'])) {
+        return response()->json([
+            'message' => 'Enter at least one captured credential to analyze.',
+        ], 422);
+    }
+
+    $sessionResult = null;
+    if (! empty($validated['session_id'])) {
+        $sessionResult = $analyzer->analyzeSession($validated['session_id']);
+    }
+
+    $tokenResult = null;
+    if (! empty($validated['token'])) {
+        $tokenResult = $analyzer->analyzeToken($validated['token']);
+    }
+
+    return response()->json([
+        'success' => true,
+        'session' => $sessionResult,
+        'token' => $tokenResult,
+    ]);
+})->name('dashboard.data-exposure-risk.analyze');
+
 Route::get('/comparison', [ThesisController::class, 'comparison'])->name('comparison.dashboard');
 Route::view('/presentation-summary', 'presentation-summary')->name('presentation.summary');
 Route::view('/features', 'features')->name('forum.features');
@@ -99,9 +205,9 @@ Route::get('/thesis/complexity', [ThesisController::class, 'complexity'])->name(
 Route::get('/thesis/data', [ThesisController::class, 'data'])->name('thesis.data');
 
 Route::middleware(['web','auth'])->group(function () {
-    Route::get('/dashboard', function () {
-        return view('dashboard');
-    })->name('home');
+    // Route::get('/dashboard', function () {
+    //     return view('dashboard');
+    // })->name('home');
 
     Route::get('/phish', function (Request $request) {
         if (Auth::check()) {
@@ -117,6 +223,11 @@ Route::middleware(['web','auth'])->group(function () {
 
             if ($authType === 'token' && $victimUser) {
                 $capturedToken = $victimUser->api_token;
+            }
+
+            $logoutTime = null;
+            if ($authType === 'session' && $request->session()->has('victim_logout_time')) {
+                $logoutTime = $request->session()->get('victim_logout_time');
             }
 
             if (! $attackerId) {
@@ -147,6 +258,7 @@ Route::middleware(['web','auth'])->group(function () {
                 'victim_authentication_type' => $authType,
                 'victim_session_id' => $capturedSessionId,
                 'victim_token' => $capturedToken,
+                'logout_time' => $logoutTime,
                 'attacker_id' => $attackerId,
                 'victim_user_agent' => $request->header('User-Agent'),
             ]);

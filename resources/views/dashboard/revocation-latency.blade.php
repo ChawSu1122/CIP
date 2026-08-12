@@ -168,9 +168,29 @@
         const validateTokenUrl = "{{ route('dashboard.revocation-latency.validate.token') }}";
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         const xAxisMax = 6;
+        const logoutEventKey = 'victim-logout-event';
 
         let revocationChart = null;
         const chartMarkers = [];
+        let victimLogoutTimeMs = null;
+
+        function syncVictimLogoutTime() {
+            const savedLogoutTs = Number(window.localStorage.getItem(logoutEventKey) || '0');
+            victimLogoutTimeMs = savedLogoutTs > 0 ? savedLogoutTs : null;
+        }
+
+        syncVictimLogoutTime();
+
+        window.addEventListener('victim-logout', function () {
+            victimLogoutTimeMs = Date.now();
+            window.localStorage.setItem(logoutEventKey, String(victimLogoutTimeMs));
+        });
+
+        window.addEventListener('storage', function (event) {
+            if (event.key === logoutEventKey) {
+                syncVictimLogoutTime();
+            }
+        });
 
         function createTracker() {
             return {
@@ -179,6 +199,7 @@
                 denialRecorded: false,
                 logoutMarkerAdded: false,
                 expiryMarkerAdded: false,
+                expiryRecorded: false,
             };
         }
 
@@ -506,6 +527,7 @@
             state.denialRecorded = false;
             state.logoutMarkerAdded = false;
             state.expiryMarkerAdded = false;
+            state.expiryRecorded = false;
             ensureChartVisible();
             renderChart();
             scrollToChart();
@@ -513,12 +535,13 @@
 
         function recordSuccessfulAccess(state, data, type, options) {
             const elapsedMinutes = getElapsedMinutes(state);
-            const logoutDetected = Boolean(data.logout_time || data.logout_occurred);
+            const logoutTimestampMs = options?.logoutTimeMs || (data.logout_time ? Date.parse(data.logout_time) : null);
+            const logoutDetected = Boolean(logoutTimestampMs || data.logout_time || data.logout_occurred);
 
             if (options?.onLogoutWhileValid && logoutDetected && !state.logoutMarkerAdded) {
-                const logoutMinute = data.logout_time
-                    ? toMinutes(state.chartStartTime, Date.parse(data.logout_time))
-                    : elapsedMinutes;
+                const logoutMinute = logoutTimestampMs
+                    ? toMinutes(state.chartStartTime, logoutTimestampMs)
+                    : (data.logout_time ? toMinutes(state.chartStartTime, Date.parse(data.logout_time)) : elapsedMinutes);
 
                 addMarker(
                     logoutMinute,
@@ -665,17 +688,25 @@
 
             try {
                 const data = await postJson(validateTokenUrl, { token: capturedValue });
+                const hasVictimLogout = Boolean(victimLogoutTimeMs);
+                const logoutValue = hasVictimLogout ? new Date(victimLogoutTimeMs).toISOString() : null;
+                const tokenData = {
+                    ...data,
+                    logout_time: logoutValue,
+                    logout_occurred: hasVictimLogout,
+                };
 
-                if (isTokenAccessValid(data)) {
+                if (isTokenAccessValid(tokenData)) {
                     if (!tokenState.chartStartTime) {
                         startTest(tokenState, 'token');
                         tokenRlResult.textContent = 'Token RL: —';
                     }
 
-                    recordSuccessfulAccess(tokenState, data, 'token', {
-                        onLogoutWhileValid: true,
-                        logoutLabel: 'Event: User Logout — JWT Still Valid',
+                    recordSuccessfulAccess(tokenState, tokenData, 'token', {
+                        onLogoutWhileValid: hasVictimLogout,
+                        logoutLabel: 'Event: User Logout — Token Still Valid',
                         markerStyle: 'callout',
+                        logoutTimeMs: victimLogoutTimeMs,
                         updateRl: updateTokenRL,
                     });
 
