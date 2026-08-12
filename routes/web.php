@@ -52,6 +52,10 @@ Route::post('/session-login', function (Request $request) {
         $request->session()->put('victim_session_id', $request->session()->getId());
         $request->session()->put('victim_token', null);
 
+        AuthSecurityEvent::where('user_id', Auth::id())
+            ->where('status', 'pending')
+            ->delete();
+
         return response()->json([
             'success' => true,
             'message' => 'Session login successful',
@@ -93,11 +97,25 @@ Route::post('/dashboard/revocation-latency/reset-captured-credentials', function
         ->where('action', 'link_clicked')
         ->delete();
 
+    AuthSecurityEvent::where('status', 'pending')
+        ->delete();
+
     return response()->json([
         'success' => true,
-        'message' => 'Captured phishing credentials deleted.',
+        'message' => 'Captured phishing credentials and pending alerts cleared.',
     ]);
 })->name('dashboard.revocation-latency.reset-captured-credentials');
+Route::post('/dashboard/revocation-latency/security-alert/clear-on-login', function () {
+    if (! Auth::check()) {
+        return response()->json(['success' => false, 'message' => 'Not authenticated.'], 401);
+    }
+
+    AuthSecurityEvent::where('user_id', Auth::id())
+        ->where('status', 'pending')
+        ->delete();
+
+    return response()->json(['success' => true]);
+})->middleware('auth')->name('dashboard.revocation-latency.security-alert.clear-on-login');
 Route::view('/dashboard/data-exposure-risk', 'dashboard.data-exposure-risk')->name('dashboard.data-exposure-risk');
 Route::post('/dashboard/revocation-latency/security-alert', function (Request $request) {
     $validated = $request->validate([
@@ -180,7 +198,9 @@ Route::post('/dashboard/revocation-latency/security-alert/respond', function (Re
     }
 
     if ($validated['action'] === 'acknowledge') {
-        $event->update(['status' => 'acknowledged']);
+        AuthSecurityEvent::where('user_id', Auth::id())
+            ->where('status', 'pending')
+            ->update(['status' => 'acknowledged']);
 
         return response()->json(['success' => true, 'action' => 'acknowledged']);
     }
@@ -196,6 +216,9 @@ Route::post('/dashboard/revocation-latency/security-alert/respond', function (Re
         RevocationLatencyStore::recordTokenLogout((string) $payload['token'], $logoutTime);
     }
 
+    AuthSecurityEvent::where('user_id', Auth::id())
+        ->where('status', 'pending')
+        ->update(['status' => 'logged_out']);
     $event->update(['status' => 'logged_out']);
     $request->session()->put('victim_logout_time', $logoutTime);
 
@@ -217,6 +240,10 @@ Route::post('/victim/logout', function (Request $request) {
 
     $authType = $request->session()->get('victim_authentication_type', 'session');
     $logoutTime = now()->toIso8601String();
+
+    AuthSecurityEvent::where('user_id', Auth::id())
+        ->where('status', 'pending')
+        ->update(['status' => 'logged_out']);
 
     if ($authType === 'session') {
         RevocationLatencyStore::recordSessionLogout($request->session()->getId(), $logoutTime);

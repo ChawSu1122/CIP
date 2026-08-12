@@ -146,6 +146,15 @@
                 sessionResponse.ok;
 
             if (sessionOk) {
+                await fetch('{{ route('dashboard.revocation-latency.security-alert.clear-on-login') }}', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
                 window.location.href = '{{ route('home') }}';
                 return;
             }

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AuthSecurityEvent;
 use App\Models\ExperimentMetric;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -110,6 +111,32 @@ class ReplayAttackPhishClickTest extends TestCase
             0,
             ExperimentMetric::where('auth_type', 'phish')
                 ->where('action', 'link_clicked')
+                ->count()
+        );
+    }
+
+    public function test_reset_clears_pending_security_alerts(): void
+    {
+        $user = User::factory()->create([
+            'name' => 'Bob',
+            'email' => 'bob@gmail.com',
+        ]);
+
+        AuthSecurityEvent::create([
+            'user_id' => $user->id,
+            'type' => 'token',
+            'status' => 'pending',
+            'message' => 'Someone is trying to use your account.',
+            'payload' => ['token' => 'captured-token-123'],
+        ]);
+
+        $this->postJson(route('dashboard.revocation-latency.reset-captured-credentials'))
+            ->assertOk();
+
+        $this->assertSame(
+            0,
+            AuthSecurityEvent::where('user_id', $user->id)
+                ->where('status', 'pending')
                 ->count()
         );
     }

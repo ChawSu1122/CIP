@@ -207,6 +207,16 @@
             activeEventId = null;
         }
 
+        function clearStaleSecurityAlert() {
+            if (victimSecurityAlert) {
+                victimSecurityAlert.classList.add('d-none');
+            }
+            if (victimSecurityBackdrop) {
+                victimSecurityBackdrop.classList.add('d-none');
+            }
+            activeEventId = null;
+        }
+
         async function pollSecurityAlert() {
             if (responding || activeEventId) {
                 return;
@@ -219,6 +229,7 @@
                 });
 
                 if (!response.ok) {
+                    clearStaleSecurityAlert();
                     return;
                 }
 
@@ -226,6 +237,8 @@
                 if (data.active && data.event_id) {
                     activeEventId = data.event_id;
                     showVictimSecurityAlert(data.message);
+                } else {
+                    clearStaleSecurityAlert();
                 }
             } catch (error) {
                 console.error('Unable to poll victim security alert.', error);
