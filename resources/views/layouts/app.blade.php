@@ -16,7 +16,7 @@
     <!-- Scripts -->
     @vite(['resources/sass/app.scss', 'resources/js/app.js'])
 </head>
-<body>
+<body @auth data-victim-auth-type="{{ session('victim_authentication_type', 'session') }}" @endauth>
     <div id="app">
         @unless(View::hasSection('hideNavbar'))
             <nav class="navbar navbar-expand-md navbar-light bg-white shadow-sm">
@@ -117,7 +117,32 @@
             @yield('content')
         </main>
     </div>
+
+@auth
+<div id="victim-security-alert-backdrop" class="position-fixed top-0 start-0 w-100 h-100 d-none" style="background: rgba(15, 23, 42, 0.55); z-index: 2000;"></div>
+<div id="victim-security-alert" class="position-fixed top-50 start-50 translate-middle d-none" style="z-index: 2001; width: min(92vw, 520px);">
+    <div class="alert alert-warning border border-warning shadow-lg mb-0" role="alert">
+        <div class="d-flex flex-column gap-2">
+            <strong>Security Alert</strong>
+            <p id="victim-security-alert-message" class="mb-0">Someone is trying to use your account. So if it is not you, please logout of all devices.</p>
+            <div class="d-flex gap-2 mt-2">
+                <button id="victim-security-yes" type="button" class="btn btn-sm btn-success">Yes, it is me</button>
+                <button id="victim-security-no" type="button" class="btn btn-sm btn-danger">No, log out of all devices</button>
+            </div>
+        </div>
+    </div>
+</div>
+@endauth
+
 <script>
+    function recordVictimLogout(authType) {
+        const type = authType === 'token' ? 'token' : 'session';
+        const at = String(Date.now());
+
+        window.dispatchEvent(new CustomEvent('victim-logout', { detail: { type } }));
+        window.localStorage.setItem(`victim-logout-event-${type}`, at);
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         const logoutForm = document.getElementById('logout-form');
 
@@ -129,8 +154,8 @@
             event.preventDefault();
 
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-            window.dispatchEvent(new CustomEvent('victim-logout'));
-            window.localStorage.setItem('victim-logout-event', String(Date.now()));
+            const authType = document.body.dataset.victimAuthType || 'session';
+            recordVictimLogout(authType);
 
             fetch('/victim/logout', {
                 method: 'POST',
@@ -145,6 +170,126 @@
             });
         });
     });
+
+    @auth
+    (function () {
+        const securityAlertStatusUrl = @json(route('dashboard.revocation-latency.security-alert.status'));
+        const securityAlertRespondUrl = @json(route('dashboard.revocation-latency.security-alert.respond'));
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        const victimSecurityAlert = document.getElementById('victim-security-alert');
+        const victimSecurityBackdrop = document.getElementById('victim-security-alert-backdrop');
+        const victimSecurityMessage = document.getElementById('victim-security-alert-message');
+        const victimSecurityYes = document.getElementById('victim-security-yes');
+        const victimSecurityNo = document.getElementById('victim-security-no');
+        let activeEventId = null;
+        let responding = false;
+
+        function showVictimSecurityAlert(message) {
+            if (!victimSecurityAlert || !victimSecurityBackdrop) {
+                return;
+            }
+
+            if (message && victimSecurityMessage) {
+                victimSecurityMessage.textContent = message;
+            }
+
+            victimSecurityBackdrop.classList.remove('d-none');
+            victimSecurityAlert.classList.remove('d-none');
+        }
+
+        function hideVictimSecurityAlert() {
+            if (!victimSecurityAlert || !victimSecurityBackdrop) {
+                return;
+            }
+
+            victimSecurityBackdrop.classList.add('d-none');
+            victimSecurityAlert.classList.add('d-none');
+            activeEventId = null;
+        }
+
+        async function pollSecurityAlert() {
+            if (responding || activeEventId) {
+                return;
+            }
+
+            try {
+                const response = await fetch(securityAlertStatusUrl, {
+                    headers: { 'Accept': 'application/json' },
+                    credentials: 'same-origin',
+                });
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const data = await response.json();
+                if (data.active && data.event_id) {
+                    activeEventId = data.event_id;
+                    showVictimSecurityAlert(data.message);
+                }
+            } catch (error) {
+                console.error('Unable to poll victim security alert.', error);
+            }
+        }
+
+        async function respondToSecurityAlert(action) {
+            if (!activeEventId || responding) {
+                return;
+            }
+
+            responding = true;
+
+            try {
+                const response = await fetch(securityAlertRespondUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        event_id: activeEventId,
+                        action: action,
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    hideVictimSecurityAlert();
+                    return;
+                }
+
+                hideVictimSecurityAlert();
+
+                if (data.action === 'logout') {
+                    recordVictimLogout(data.type === 'token' ? 'token' : 'session');
+                    window.location.href = data.redirect || @json(route('login'));
+                }
+            } catch (error) {
+                console.error('Unable to respond to security alert.', error);
+            } finally {
+                responding = false;
+            }
+        }
+
+        if (victimSecurityYes) {
+            victimSecurityYes.addEventListener('click', function () {
+                respondToSecurityAlert('acknowledge');
+            });
+        }
+
+        if (victimSecurityNo) {
+            victimSecurityNo.addEventListener('click', function () {
+                respondToSecurityAlert('logout');
+            });
+        }
+
+        pollSecurityAlert();
+        setInterval(pollSecurityAlert, 1500);
+    })();
+    @endauth
 </script>
 </body>
 </html>

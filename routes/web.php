@@ -6,13 +6,16 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use App\Http\Controllers\PostController;
 use App\Models\ExperimentMetric;
+use App\Models\AuthSecurityEvent;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ThesisController;
 use App\Http\Controllers\ReplayAttackController;
 use App\Models\User;
 use App\Support\JwtHelper;
+use App\Support\RevocationLatencyStore;
 use App\Services\CredentialExposureAnalyzer;
+use Illuminate\Support\Carbon;
 
 // Authentication Routes
 Auth::routes();
@@ -86,19 +89,153 @@ Route::view('/dashboard/security', 'dashboard.security')->name('dashboard.securi
 Route::view('/dashboard', 'dashboard')->name('dashboard');
 Route::view('/dashboard/revocation-latency', 'dashboard.revocation-latency')->name('dashboard.revocation-latency');
 Route::view('/dashboard/data-exposure-risk', 'dashboard.data-exposure-risk')->name('dashboard.data-exposure-risk');
-Route::post('/dashboard/revocation-latency/logout/token', function (Request $request) {
-    $token = trim((string) $request->input('token', ''));
+Route::post('/dashboard/revocation-latency/security-alert', function (Request $request) {
+    $validated = $request->validate([
+        'type' => 'required|string|in:session,token',
+        'message' => 'nullable|string',
+        'payload' => 'nullable|array',
+    ]);
+
+    $payload = $validated['payload'] ?? [];
+    $userId = null;
+
+    if ($validated['type'] === 'session' && ! empty($payload['session_id'] ?? null)) {
+        $sessionRow = DB::table('sessions')->where('id', (string) $payload['session_id'])->first();
+        $userId = $sessionRow?->user_id;
+    }
+
+    if ($validated['type'] === 'token' && ! empty($payload['token'] ?? null)) {
+        $token = (string) $payload['token'];
+        $tokenUser = User::where('api_token', $token)->first();
+        $tokenPayload = JwtHelper::decodePayload($token);
+        $userId = $tokenUser?->id ?? ($tokenPayload['sub'] ?? null);
+    }
+
+    if (! $userId) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Unable to identify the account owner for this credential.',
+        ], 422);
+    }
+
+    $event = AuthSecurityEvent::create([
+        'user_id' => (int) $userId,
+        'type' => $validated['type'],
+        'status' => 'pending',
+        'message' => $validated['message'] ?? 'Someone is trying to use your account. So if it is not you, please logout of all devices',
+        'payload' => $payload,
+    ]);
+
+    return response()->json([
+        'success' => true,
+        'event_id' => $event->id,
+        'user_id' => $event->user_id,
+        'message' => $event->message,
+    ]);
+})->name('dashboard.revocation-latency.security-alert');
+Route::get('/dashboard/revocation-latency/security-alert/status', function () {
+    if (! Auth::check()) {
+        return response()->json(['active' => false]);
+    }
+
+    $event = AuthSecurityEvent::where('user_id', Auth::id())
+        ->where('status', 'pending')
+        ->latest('created_at')
+        ->first();
+
+    if (! $event) {
+        return response()->json(['active' => false]);
+    }
+
+    return response()->json([
+        'active' => true,
+        'event_id' => $event->id,
+        'message' => $event->message,
+        'type' => $event->type,
+    ]);
+})->middleware('auth')->name('dashboard.revocation-latency.security-alert.status');
+Route::post('/dashboard/revocation-latency/security-alert/respond', function (Request $request) {
+    $validated = $request->validate([
+        'event_id' => 'required|integer',
+        'action' => 'required|string|in:acknowledge,logout',
+    ]);
+
+    $event = AuthSecurityEvent::where('id', $validated['event_id'])
+        ->where('user_id', Auth::id())
+        ->where('status', 'pending')
+        ->first();
+
+    if (! $event) {
+        return response()->json(['success' => false, 'message' => 'Security alert not found.'], 404);
+    }
+
+    if ($validated['action'] === 'acknowledge') {
+        $event->update(['status' => 'acknowledged']);
+
+        return response()->json(['success' => true, 'action' => 'acknowledged']);
+    }
+
+    $payload = $event->payload ?? [];
     $logoutTime = now()->toIso8601String();
 
-    if ($token !== '') {
-        $request->session()->put('dashboard_revocation_token_logout_time', $logoutTime);
-        $request->session()->put('dashboard_revocation_last_token', $token);
+    if ($event->type === 'session' && ! empty($payload['session_id'] ?? null)) {
+        RevocationLatencyStore::recordSessionLogout((string) $payload['session_id'], $logoutTime);
+    }
+
+    if ($event->type === 'token' && ! empty($payload['token'] ?? null)) {
+        RevocationLatencyStore::recordTokenLogout((string) $payload['token'], $logoutTime);
+    }
+
+    $event->update(['status' => 'logged_out']);
+    $request->session()->put('victim_logout_time', $logoutTime);
+
+    Auth::logout();
+    $request->session()->invalidate();
+    $request->session()->regenerateToken();
+
+    return response()->json([
+        'success' => true,
+        'action' => 'logout',
+        'type' => $event->type,
+        'redirect' => route('/home'),
+    ]);
+})->middleware('auth')->name('dashboard.revocation-latency.security-alert.respond');
+Route::post('/victim/logout', function (Request $request) {
+    if (! Auth::check()) {
+        return response()->json(['success' => false], 401);
+    }
+
+    $authType = $request->session()->get('victim_authentication_type', 'session');
+    $logoutTime = now()->toIso8601String();
+
+    if ($authType === 'session') {
+        RevocationLatencyStore::recordSessionLogout($request->session()->getId(), $logoutTime);
+    } else {
+        $token = Auth::user()?->api_token;
+        if ($token) {
+            RevocationLatencyStore::recordTokenLogout($token, $logoutTime);
+        }
     }
 
     return response()->json([
         'success' => true,
         'logout_time' => $logoutTime,
-        'message' => 'Victim logout recorded. The JWT was removed from the client and remains valid until its original expiration time.',
+        'type' => $authType,
+    ]);
+})->middleware('auth')->name('victim.logout');
+
+Route::post('/dashboard/revocation-latency/logout/token', function (Request $request) {
+    $token = trim((string) $request->input('token', ''));
+    $logoutTime = now()->toIso8601String();
+
+    if ($token !== '') {
+        RevocationLatencyStore::recordTokenLogout($token, $logoutTime);
+    }
+
+    return response()->json([
+        'success' => true,
+        'logout_time' => $logoutTime,
+        'message' => 'Victim logout recorded. The JWT remains valid until its original expiration time.',
     ]);
 })->name('dashboard.revocation-latency.logout.token');
 Route::post('/dashboard/revocation-latency/validate/session', function (Request $request) {
@@ -117,12 +254,13 @@ Route::post('/dashboard/revocation-latency/validate/session', function (Request 
 
     $session = DB::table('sessions')->where('id', $sessionId)->first();
     $isValid = $session && $session->last_activity >= (time() - (config('session.lifetime') * 60));
+    $logoutTime = RevocationLatencyStore::getSessionLogoutTime($sessionId);
 
     return response()->json([
         'valid' => $isValid,
         'expired' => ! $isValid,
-        'logout_occurred' => false,
-        'logout_time' => null,
+        'logout_occurred' => ! empty($logoutTime),
+        'logout_time' => $logoutTime,
         'token_expiration_time' => null,
         'revocation_latency_seconds' => null,
     ]);
@@ -143,16 +281,17 @@ Route::post('/dashboard/revocation-latency/validate/token', function (Request $r
 
     $payload = JwtHelper::decodePayload($token);
     $exp = $payload['exp'] ?? null;
+    $iat = $payload['iat'] ?? null;
     $expired = JwtHelper::isExpired($token) || ! JwtHelper::verifySignature($token) || $payload === null;
-    $logoutTime = $request->session()->get('dashboard_revocation_token_logout_time');
-    $logoutOccurred = ! empty($logoutTime);
+    $logoutTime = RevocationLatencyStore::getTokenLogoutTime($token);
 
     return response()->json([
         'valid' => ! $expired,
         'expired' => $expired,
-        'logout_occurred' => $logoutOccurred,
+        'logout_occurred' => ! empty($logoutTime),
         'logout_time' => $logoutTime,
-        'token_expiration_time' => $exp ? gmdate('Y-m-d\TH:i:s\Z', (int) $exp) : null,
+        'token_issued_at' => $iat ? Carbon::createFromTimestamp((int) $iat)->toIso8601String() : null,
+        'token_expiration_time' => $exp ? Carbon::createFromTimestamp((int) $exp)->toIso8601String() : null,
         'revocation_latency_seconds' => null,
     ]);
 })->name('dashboard.revocation-latency.validate.token');
