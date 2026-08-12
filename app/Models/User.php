@@ -62,11 +62,14 @@ class User extends Authenticatable
 
     public function createApiToken(): string
     {
+        $issuedAt = time();
+
         $token = JwtHelper::encode([
             'sub' => $this->id,
             'email' => $this->email,
             'role' => $this->role ? 'admin' : 'user',
-            'exp' => time() + (60 * 60 * 24 * 30),
+            'iat' => $issuedAt,
+            'exp' => $issuedAt + JwtHelper::DEMO_TOKEN_TTL_SECONDS,
             'iss' => (string) config('app.name'),
         ]);
 

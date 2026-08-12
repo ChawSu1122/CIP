@@ -37,7 +37,6 @@
         <div class="card shadow-sm border-0">
             <div class="card-header bg-primary text-white border-0">
                 <h2 class="h5 mb-1">Token Hijacking Attack</h2>
-                {{-- <p class="mb-0 small opacity-75">A victim's bearer token is captured and replayed to access protected resources.</p> --}}
             </div>
 
             <ul class="list-group list-group-flush">
@@ -77,7 +76,7 @@
             </ul>
 
             <div class="card-body">
-                <button type="button" class="btn btn-primary">Unauthorized Access</button>
+                <button id="unauthorized-token-btn" type="button" class="btn btn-primary">Unauthorized Access</button>
             </div>
         </div>
     </div>
@@ -86,7 +85,6 @@
         <div class="card shadow-sm border-0">
             <div class="card-header bg-danger text-white border-0">
                 <h2 class="h5 mb-1">Session Hijacking Attack</h2>
-                {{-- <p class="mb-0 small opacity-75">An attacker steals a valid session ID and reuses it to impersonate the victim.</p> --}}
             </div>
 
             <ul class="list-group list-group-flush">
@@ -132,64 +130,270 @@
     </div>
 </div>
 
-<div id="chart-alert" class="alert alert-warning alert-dismissible fade" role="alert" style="display: none;">
-    <strong>Warning:</strong> Please enter the captured session ID before continuing.
-    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-</div>
+<div id="chart-alert" class="alert alert-warning d-none mt-4" role="alert"></div>
 
-<div id="chart-section" class="card shadow-sm border-0 mt-4" style="display: block;">
+<div id="chart-section" class="card shadow-sm border-0 mt-4 d-none">
     <div class="card-header bg-white border-0">
-        <h2 class="h5 mb-1">Revocation Latency Step Line Chart</h2>
-        <p class="mb-0 small opacity-75">Session-based access stays active until the victim logs out; token-based access expires after 5 minutes.</p>
+        <h2 class="h5 mb-1">Comparative Analysis of Access Revocation Latency (Session vs. Token)</h2>
+        <p class="mb-0 small text-secondary">The chart updates only when the attacker clicks Unauthorized Access, using real logout and JWT expiration timestamps from the server.</p>
     </div>
     <div class="card-body">
-        <canvas id="revocationChart" height="220"></canvas>
+        <div style="position: relative; height: 360px;">
+            <canvas id="revocationChart"></canvas>
+        </div>
+        <div class="border rounded p-3 mt-4 bg-light">
+            <p class="mb-2"><strong>Description:</strong> Session access is invalidated immediately when the victim logs out. Token access remains valid until the JWT naturally expires (5 minutes in this demonstration), even after logout.</p>
+            <p class="mb-1"><strong>Metric for Calculation:</strong> Revocation Latency (RL)</p>
+            <p class="mb-1"><strong>Session RL Calculation:</strong> Time of first denied request − User Logout Time</p>
+            <p class="mb-1"><strong>Token RL Calculation:</strong> Token Expiration Time − User Logout Time</p>
+            <p class="mb-1" id="session-rl-result">Session RL: —</p>
+            <p class="mb-0" id="token-rl-result">Token RL: —</p>
+        </div>
     </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        const unauthorizedButton = document.getElementById('unauthorized-access-btn');
+        const sessionButton = document.getElementById('unauthorized-access-btn');
+        const tokenButton = document.getElementById('unauthorized-token-btn');
         const sessionInput = document.getElementById('captured-session');
+        const tokenInput = document.getElementById('captured-token');
         const chartSection = document.getElementById('chart-section');
         const chartAlert = document.getElementById('chart-alert');
         const chartCanvas = document.getElementById('revocationChart');
+        const sessionRlResult = document.getElementById('session-rl-result');
+        const tokenRlResult = document.getElementById('token-rl-result');
         const validateSessionUrl = "{{ route('dashboard.revocation-latency.validate.session') }}";
+        const validateTokenUrl = "{{ route('dashboard.revocation-latency.validate.token') }}";
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        const xAxisMax = 6;
+
         let revocationChart = null;
-        let chartStartTime = null;
-        let samplePoints = [];
-        let logoutMarker = null;
+        const chartMarkers = [];
+
+        function createTracker() {
+            return {
+                chartStartTime: null,
+                samplePoints: [],
+                denialRecorded: false,
+                logoutMarkerAdded: false,
+                expiryMarkerAdded: false,
+            };
+        }
+
+        const sessionState = createTracker();
+        const tokenState = createTracker();
 
         function showAlert(message) {
-            chartAlert.querySelector('strong').textContent = 'Warning:';
-            chartAlert.childNodes[2].textContent = ' ' + message;
-            chartAlert.style.display = 'block';
-            chartAlert.classList.add('show');
+            chartAlert.textContent = message;
+            chartAlert.classList.remove('d-none');
         }
 
         function hideAlert() {
-            chartAlert.style.display = 'none';
-            chartAlert.classList.remove('show');
+            chartAlert.classList.add('d-none');
+            chartAlert.textContent = '';
+        }
+
+        function toMinutes(startMs, endMs) {
+            return Math.min(Math.max((endMs - startMs) / 60000, 0), xAxisMax);
+        }
+
+        function getElapsedMinutes(state) {
+            if (!state.chartStartTime) {
+                return 0;
+            }
+
+            return toMinutes(state.chartStartTime, Date.now());
+        }
+
+        function sortPoints(state) {
+            state.samplePoints.sort(function (a, b) {
+                if (a.x === b.x) {
+                    return b.y - a.y;
+                }
+
+                return a.x - b.x;
+            });
+
+            const deduped = [];
+
+            state.samplePoints.forEach(function (point) {
+                const last = deduped[deduped.length - 1];
+                if (last && last.x === point.x && last.y === point.y) {
+                    return;
+                }
+
+                deduped.push(point);
+            });
+
+            state.samplePoints = deduped;
+        }
+
+        function appendPoint(state, x, y) {
+            state.samplePoints.push({
+                x: Number(x.toFixed(3)),
+                y: Number(y),
+            });
+            sortPoints(state);
+        }
+
+        function addMarker(x, label, color, type, style) {
+            chartMarkers.push({
+                x: Number(x.toFixed(3)),
+                label: label,
+                color: color || '#7c3aed',
+                type: type,
+                style: style || 'line',
+            });
+        }
+
+        function drawMarkerAnnotation(ctx, chart, marker) {
+            const xScale = chart.scales.x;
+            const yScale = chart.scales.y;
+            const x = xScale.getPixelForValue(marker.x);
+            const ySuccess = yScale.getPixelForValue(1);
+            const yTop = chart.chartArea.top;
+            const yBottom = chart.chartArea.bottom;
+
+            ctx.save();
+            ctx.strokeStyle = marker.color;
+            ctx.setLineDash([6, 4]);
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(x, yTop);
+            ctx.lineTo(x, yBottom);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            if (marker.style === 'callout') {
+                const lines = marker.label.split(' — ');
+                const title = lines[0] || marker.label;
+                const subtitle = lines.slice(1).join(' — ');
+                const paddingX = 8;
+                const lineHeight = 14;
+                ctx.font = 'bold 11px Inter, system-ui, sans-serif';
+                const titleWidth = ctx.measureText(title).width;
+                ctx.font = '11px Inter, system-ui, sans-serif';
+                const subtitleWidth = subtitle ? ctx.measureText(subtitle).width : 0;
+                const boxWidth = Math.max(titleWidth, subtitleWidth) + (paddingX * 2);
+                const boxHeight = subtitle ? 42 : 28;
+                const boxX = Math.min(
+                    Math.max(x - (boxWidth / 2), chart.chartArea.left + 4),
+                    chart.chartArea.right - boxWidth - 4
+                );
+                const boxY = Math.max(yTop + 6, ySuccess - boxHeight - 18);
+
+                ctx.fillStyle = marker.color === '#dc2626' ? '#fef2f2' : '#f5f3ff';
+                ctx.strokeStyle = marker.color;
+                ctx.lineWidth = 1.25;
+                ctx.beginPath();
+                if (typeof ctx.roundRect === 'function') {
+                    ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 6);
+                } else {
+                    ctx.rect(boxX, boxY, boxWidth, boxHeight);
+                }
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(x, boxY + boxHeight);
+                ctx.lineTo(x, Math.min(ySuccess - 4, yBottom - 8));
+                ctx.stroke();
+
+                ctx.fillStyle = marker.color === '#dc2626' ? '#991b1b' : '#5b21b6';
+                ctx.font = 'bold 11px Inter, system-ui, sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText(title, boxX + paddingX, boxY + 14);
+
+                if (subtitle) {
+                    ctx.font = '11px Inter, system-ui, sans-serif';
+                    ctx.fillText(subtitle, boxX + paddingX, boxY + 14 + lineHeight);
+                }
+            } else {
+                ctx.fillStyle = marker.color;
+                ctx.font = '11px Inter, system-ui, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(marker.label, x, yTop - 8);
+            }
+
+            ctx.restore();
+        }
+
+        function clearMarkers(type) {
+            for (let index = chartMarkers.length - 1; index >= 0; index -= 1) {
+                if (chartMarkers[index].type === type) {
+                    chartMarkers.splice(index, 1);
+                }
+            }
+        }
+
+        function ensureChartVisible() {
+            chartSection.classList.remove('d-none');
         }
 
         function scrollToChart() {
             chartSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
-        function ensureChartVisible() {
-            chartSection.style.display = 'block';
-            chartSection.classList.remove('d-none');
-            if (chartCanvas) {
-                chartCanvas.style.display = 'block';
-                chartCanvas.style.minHeight = '220px';
+        function formatLatency(seconds) {
+            if (seconds === null || seconds === undefined) {
+                return '—';
+            }
+
+            if (seconds === 0) {
+                return '0 seconds (Immediate)';
+            }
+
+            if (seconds < 60) {
+                return `${seconds} second${seconds === 1 ? '' : 's'}`;
+            }
+
+            const minutes = (seconds / 60).toFixed(2);
+            return `${minutes} minutes (${seconds} seconds)`;
+        }
+
+        function updateSessionRL(data, denialTimeMs) {
+            if (data.revocation_latency_seconds !== null && data.revocation_latency_seconds !== undefined) {
+                sessionRlResult.textContent = `Session RL: ${formatLatency(data.revocation_latency_seconds)}`;
+                return;
+            }
+
+            if (data.logout_time) {
+                const latencySeconds = Math.max(0, Math.round((denialTimeMs - Date.parse(data.logout_time)) / 1000));
+                sessionRlResult.textContent = `Session RL: ${formatLatency(latencySeconds)}`;
             }
         }
 
-        function buildDataPoints() {
-            return samplePoints.map(function (point) {
-                return { x: Number(point.x), y: Number(point.y) };
-            });
+        function updateTokenRL(data) {
+            if (data.revocation_latency_seconds !== null && data.revocation_latency_seconds !== undefined) {
+                tokenRlResult.textContent = `Token RL: ${formatLatency(data.revocation_latency_seconds)}`;
+                return;
+            }
+
+            if (data.logout_time && data.token_expiration_time) {
+                const latencySeconds = Math.max(0, Math.round(
+                    (Date.parse(data.token_expiration_time) - Date.parse(data.logout_time)) / 1000
+                ));
+                tokenRlResult.textContent = `Token RL: ${formatLatency(latencySeconds)}`;
+            }
+        }
+
+        function buildDataset(state, label, color, backgroundColor) {
+            return {
+                label: label,
+                data: state.samplePoints.map(function (point) {
+                    return { x: point.x, y: point.y };
+                }),
+                borderColor: color,
+                backgroundColor: backgroundColor,
+                stepped: 'after',
+                fill: false,
+                tension: 0,
+                pointRadius: state.samplePoints.length ? 4 : 0,
+                pointHoverRadius: 5,
+                pointBackgroundColor: color,
+            };
         }
 
         function renderChart() {
@@ -197,27 +401,15 @@
                 return;
             }
 
-            const chartData = buildDataPoints();
-            const maxX = Math.max(5, Math.ceil((chartData[chartData.length - 1]?.x || 0) + 1));
+            const datasets = [
+                buildDataset(sessionState, 'Session (Immediate Revocation)', '#2563eb', 'rgba(37, 99, 235, 0.08)'),
+                buildDataset(tokenState, 'Token (Expires After 5 Minutes)', '#dc3545', 'rgba(220, 53, 69, 0.08)'),
+            ];
 
             if (!revocationChart) {
                 revocationChart = new Chart(chartCanvas.getContext('2d'), {
                     type: 'line',
-                    data: {
-                        datasets: [
-                            {
-                                label: 'Access Status',
-                                data: chartData,
-                                borderColor: '#2563eb',
-                                backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                                stepped: 'before',
-                                fill: false,
-                                tension: 0,
-                                pointRadius: 3,
-                                pointHoverRadius: 4,
-                            }
-                        ]
-                    },
+                    data: { datasets: datasets },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
@@ -225,144 +417,190 @@
                             x: {
                                 type: 'linear',
                                 min: 0,
-                                max: maxX,
-                                ticks: {
-                                    stepSize: 1,
-                                    callback: function(value) {
-                                        return `${value}`;
-                                    }
-                                },
+                                max: xAxisMax,
+                                ticks: { stepSize: 1 },
                                 title: {
                                     display: true,
-                                    text: 'Elapsed Time (Minutes)'
+                                    text: 'Time (Minutes)',
                                 },
-                                grid: {
-                                    color: '#e5e7eb'
-                                }
+                                grid: { color: '#e5e7eb' },
                             },
                             y: {
                                 min: 0,
                                 max: 1,
                                 ticks: {
                                     stepSize: 1,
-                                    callback: function(value) {
-                                        return value === 1 ? '1 (Success / 200 OK)' : '0 (Denied / 401 Unauthorized)';
-                                    }
+                                    callback: function (value) {
+                                        return value === 1
+                                            ? '1 (Success / 200 OK)'
+                                            : '0 (Access Denied / 401 Unauthorized)';
+                                    },
                                 },
                                 title: {
                                     display: true,
-                                    text: 'Access Status'
+                                    text: 'Access Status',
                                 },
-                                grid: {
-                                    color: '#e5e7eb'
-                                }
-                            }
+                                grid: { color: '#e5e7eb' },
+                            },
                         },
                         plugins: {
-                            legend: {
-                                position: 'top'
-                            },
+                            legend: { position: 'top' },
                             tooltip: {
                                 callbacks: {
-                                    label: function(context) {
-                                        const label = context.dataset.label || '';
+                                    label: function (context) {
                                         const value = context.parsed.y;
-                                        return `${label}: ${value === 1 ? 'Success / 200 OK' : 'Denied / 401 Unauthorized'}`;
-                                    }
-                                }
-                            }
+                                        return value === 1
+                                            ? 'Success / 200 OK'
+                                            : 'Access Denied / 401 Unauthorized';
+                                    },
+                                },
+                            },
                         },
-                        animation: {
-                            duration: 200
-                        }
+                        animation: { duration: 250 },
                     },
                     plugins: [{
-                        id: 'logoutMarker',
+                        id: 'eventMarkers',
                         afterDraw(chart) {
-                            if (logoutMarker === null) {
+                            if (!chartMarkers.length) {
                                 return;
                             }
 
-                            const xScale = chart.scales.x;
-                            const ctx = chart.ctx;
-                            const yTop = chart.chartArea.top;
-                            const yBottom = chart.chartArea.bottom;
-                            const x = xScale.getPixelForValue(logoutMarker);
-
-                            ctx.save();
-                            ctx.strokeStyle = '#d97706';
-                            ctx.setLineDash([6, 4]);
-                            ctx.lineWidth = 1.5;
-                            ctx.beginPath();
-                            ctx.moveTo(x, yTop);
-                            ctx.lineTo(x, yBottom);
-                            ctx.stroke();
-                            ctx.setLineDash([]);
-
-                            ctx.fillStyle = '#92400e';
-                            ctx.font = '14px Inter, system-ui, sans-serif';
-                            ctx.textAlign = 'center';
-                            ctx.fillText(`User Logout @ ${logoutMarker.toFixed(2)}m`, x, yTop - 10);
-                            ctx.restore();
-                        }
-                    }]
+                            chartMarkers.forEach(function (marker) {
+                                drawMarkerAnnotation(chart.ctx, chart, marker);
+                            });
+                        },
+                    }],
                 });
 
                 return;
             }
 
-            revocationChart.data.datasets[0].data = chartData;
-            revocationChart.options.scales.x.max = maxX;
+            revocationChart.data.datasets = datasets;
             revocationChart.update();
         }
 
-        function startLiveTimer() {
-            chartStartTime = Date.now();
-            samplePoints = [{ x: 0, y: 1 }];
-            logoutMarker = null;
+        function startTest(state, type) {
+            clearMarkers(type);
+            state.chartStartTime = Date.now();
+            state.samplePoints = [{ x: 0, y: 1 }];
+            state.denialRecorded = false;
+            state.logoutMarkerAdded = false;
+            state.expiryMarkerAdded = false;
             ensureChartVisible();
             renderChart();
             scrollToChart();
         }
 
-        function addSamplePoint(status = 1) {
-            if (!chartStartTime) {
-                return;
-            }
+        function recordSuccessfulAccess(state, data, type, options) {
+            const elapsedMinutes = getElapsedMinutes(state);
+            const logoutDetected = Boolean(data.logout_time || data.logout_occurred);
 
-            const elapsedMinutes = Math.min((Date.now() - chartStartTime) / 60000, 10);
-            samplePoints.push({ x: elapsedMinutes, y: status });
-            renderChart();
-            scrollToChart();
-        }
+            if (options?.onLogoutWhileValid && logoutDetected && !state.logoutMarkerAdded) {
+                const logoutMinute = data.logout_time
+                    ? toMinutes(state.chartStartTime, Date.parse(data.logout_time))
+                    : elapsedMinutes;
 
-        function markLogout(logoutTimeIso) {
-            if (!chartStartTime) {
-                return;
-            }
+                addMarker(
+                    logoutMinute,
+                    options.logoutLabel,
+                    options.markerColor || '#7c3aed',
+                    type,
+                    options.markerStyle || 'callout'
+                );
+                state.logoutMarkerAdded = true;
+                appendPoint(state, logoutMinute, 1);
 
-            const elapsedMinutes = Math.min((Date.now() - chartStartTime) / 60000, 10);
-            logoutMarker = null;
-
-            if (logoutTimeIso) {
-                const logoutTimeMs = Date.parse(logoutTimeIso);
-                if (!Number.isNaN(logoutTimeMs)) {
-                    const exactElapsedMinutes = Math.min(Math.max((logoutTimeMs - chartStartTime) / 60000, 0), 10);
-                    logoutMarker = exactElapsedMinutes;
-                    samplePoints.push({ x: exactElapsedMinutes, y: 0 });
-                    renderChart();
-                    scrollToChart();
-                    return;
+                if (options.updateRl) {
+                    options.updateRl(data);
                 }
             }
 
-            samplePoints.push({ x: elapsedMinutes, y: 0 });
+            appendPoint(state, elapsedMinutes, 1);
             renderChart();
             scrollToChart();
         }
 
-        unauthorizedButton.addEventListener('click', function () {
+        function recordSessionDeniedAccess(data) {
+            if (sessionState.denialRecorded) {
+                appendPoint(sessionState, getElapsedMinutes(sessionState), 0);
+                renderChart();
+                scrollToChart();
+                return;
+            }
+
+            sessionState.denialRecorded = true;
+            const denialTimeMs = Date.now();
+            const denialMinute = toMinutes(sessionState.chartStartTime, denialTimeMs);
+
+            if (data.logout_time) {
+                const logoutMinute = toMinutes(sessionState.chartStartTime, Date.parse(data.logout_time));
+                addMarker(logoutMinute, 'Event: User Logout', '#7c3aed', 'session');
+                sessionState.logoutMarkerAdded = true;
+                appendPoint(sessionState, logoutMinute, 0);
+
+                if (denialMinute > logoutMinute) {
+                    appendPoint(sessionState, denialMinute, 0);
+                }
+            } else {
+                appendPoint(sessionState, denialMinute, 0);
+            }
+
+            updateSessionRL(data, denialTimeMs);
+            renderChart();
+            scrollToChart();
+        }
+
+        function recordTokenExpiredAccess(data) {
+            if (tokenState.expiryRecorded) {
+                appendPoint(tokenState, getElapsedMinutes(tokenState), 0);
+                renderChart();
+                scrollToChart();
+                return;
+            }
+
+            tokenState.expiryRecorded = true;
+            tokenState.denialRecorded = true;
+
+            const denialTimeMs = Date.now();
+            const denialMinute = toMinutes(tokenState.chartStartTime, denialTimeMs);
+            const expirationMs = data.token_expiration_time ? Date.parse(data.token_expiration_time) : null;
+            const expirationMinute = expirationMs
+                ? toMinutes(tokenState.chartStartTime, expirationMs)
+                : Math.min(5, denialMinute);
+
+            if (!tokenState.expiryMarkerAdded) {
+                addMarker(expirationMinute, 'Event: Token Expired', '#dc2626', 'token', 'callout');
+                tokenState.expiryMarkerAdded = true;
+            }
+
+            appendPoint(tokenState, expirationMinute, 0);
+
+            if (denialMinute > expirationMinute) {
+                appendPoint(tokenState, denialMinute, 0);
+            }
+
+            updateTokenRL(data);
+            renderChart();
+            scrollToChart();
+        }
+
+        async function postJson(url, payload) {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+                body: JSON.stringify(payload),
+            });
+
+            return response.json();
+        }
+
+        sessionButton.addEventListener('click', async function () {
             const capturedValue = sessionInput.value.trim();
+
             if (!capturedValue) {
                 showAlert('Please enter the captured session ID before continuing.');
                 return;
@@ -370,44 +608,79 @@
 
             hideAlert();
 
-            fetch(validateSessionUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-                },
-                body: JSON.stringify({ session_id: capturedValue })
-            })
-                .then(function (response) {
-                    return response.json();
-                })
-                .then(function (data) {
-                    if (data.valid) {
-                        if (!chartStartTime) {
-                            startLiveTimer();
-                        } else {
-                            addSamplePoint(1);
-                        }
+            try {
+                const data = await postJson(validateSessionUrl, { session_id: capturedValue });
+
+                if (data.valid) {
+                    if (!sessionState.chartStartTime) {
+                        startTest(sessionState, 'session');
                     } else {
-                        if (!chartStartTime) {
-                            startLiveTimer();
-                        }
-                        if (data.logout_time) {
-                            markLogout(data.logout_time);
-                        } else {
-                            addSamplePoint(0);
-                        }
-                        showAlert('Session invalidated: captured session ID is no longer valid.');
+                        recordSuccessfulAccess(sessionState, data, 'session');
                     }
-                })
-                .catch(function () {
-                    showAlert('Unable to validate the captured session ID.');
-                });
+
+                    return;
+                }
+
+                if (!sessionState.chartStartTime) {
+                    showAlert('Captured session ID is not valid. Start with a live captured session before the victim logs out.');
+                    return;
+                }
+
+                recordSessionDeniedAccess(data);
+                showAlert('Session invalidated: captured session ID is no longer valid.');
+            } catch (error) {
+                showAlert('Unable to validate the captured session ID.');
+            }
         });
 
-        ensureChartVisible();
-        renderChart();
+        tokenButton.addEventListener('click', async function () {
+            const capturedValue = tokenInput.value.trim();
+
+            if (!capturedValue) {
+                showAlert('Please enter the captured JWT token before continuing.');
+                return;
+            }
+
+            hideAlert();
+
+            try {
+                const data = await postJson(validateTokenUrl, { token: capturedValue });
+
+                if (data.valid) {
+                    if (!tokenState.chartStartTime) {
+                        startTest(tokenState, 'token');
+                        tokenRlResult.textContent = 'Token RL: —';
+                    }
+
+                    recordSuccessfulAccess(tokenState, data, 'token', {
+                        onLogoutWhileValid: true,
+                        logoutLabel: 'Event: User Logout — JWT Still Valid',
+                        markerStyle: 'callout',
+                        updateRl: updateTokenRL,
+                    });
+
+                    return;
+                }
+
+                if (!tokenState.chartStartTime) {
+                    showAlert('Captured JWT token is not valid. Log in via token authentication and capture a fresh JWT before testing.');
+                    return;
+                }
+
+                if (data.expired) {
+                    recordTokenExpiredAccess(data);
+                    showAlert('JWT expired: captured token is no longer valid.');
+                    return;
+                }
+
+                appendPoint(tokenState, getElapsedMinutes(tokenState), 0);
+                renderChart();
+                scrollToChart();
+                showAlert('Captured JWT token is no longer valid.');
+            } catch (error) {
+                showAlert('Unable to validate the captured JWT token.');
+            }
+        });
     });
 </script>
 

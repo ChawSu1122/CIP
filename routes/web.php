@@ -12,6 +12,7 @@ use App\Http\Controllers\ThesisController;
 use App\Http\Controllers\ReplayAttackController;
 use App\Models\User;
 use App\Services\CredentialExposureAnalyzer;
+use App\Support\JwtHelper;
 
 // Authentication Routes
 Auth::routes();
@@ -111,18 +112,44 @@ Route::post('/victim/logout', function (Request $request) {
 
     $logoutTime = now();
     $request->session()->put('victim_logout_time', $logoutTime->toDateTimeString());
+    $authType = $request->session()->get('victim_authentication_type', 'session');
 
-    if (config('session.driver') === 'database') {
+    if ($authType !== 'token' && config('session.driver') === 'database') {
         DB::table(config('session.table'))
             ->where('id', $request->session()->getId())
             ->delete();
     }
 
-    $latestMetric = ExperimentMetric::where('victim_id', Auth::id())
-        ->where('action', 'link_clicked')
-        ->whereNull('logout_time')
-        ->orderBy('created_at', 'desc')
-        ->first();
+    if ($authType === 'token' && Auth::user()?->api_token) {
+        $latestMetric = ExperimentMetric::where('victim_token', Auth::user()->api_token)
+            ->where('action', 'link_clicked')
+            ->whereNull('logout_time')
+            ->orderBy('created_at', 'desc')
+            ->first();
+
+        if (! $latestMetric) {
+            $latestMetric = ExperimentMetric::where('victim_id', Auth::id())
+                ->where('victim_authentication_type', 'token')
+                ->where('action', 'link_clicked')
+                ->whereNull('logout_time')
+                ->orderBy('created_at', 'desc')
+                ->first();
+        }
+    } else {
+        $latestMetric = ExperimentMetric::where('victim_session_id', $request->session()->getId())
+            ->where('action', 'link_clicked')
+            ->whereNull('logout_time')
+            ->orderBy('created_at', 'desc')
+            ->first();
+
+        if (! $latestMetric) {
+            $latestMetric = ExperimentMetric::where('victim_id', Auth::id())
+                ->where('action', 'link_clicked')
+                ->whereNull('logout_time')
+                ->orderBy('created_at', 'desc')
+                ->first();
+        }
+    }
 
     if ($latestMetric) {
         $latestMetric->logout_time = $logoutTime;
@@ -137,6 +164,7 @@ Route::post('/victim/logout', function (Request $request) {
 
 Route::post('/dashboard/revocation-latency/validate-session', function (Request $request) {
     $sessionId = $request->input('session_id');
+    $checkedAt = now();
 
     $sessionExists = false;
     if (config('session.driver') === 'database') {
@@ -149,12 +177,78 @@ Route::post('/dashboard/revocation-latency/validate-session', function (Request 
         ->orderBy('created_at', 'desc')
         ->first();
 
+    $logoutTime = $logoutMetric?->logout_time;
+    $revocationLatencySeconds = null;
+
+    if (! $sessionExists && $logoutTime) {
+        $revocationLatencySeconds = $logoutTime->diffInSeconds($checkedAt);
+    }
+
     return response()->json([
         'success' => true,
         'valid' => $sessionExists,
-        'logout_time' => $logoutMetric?->logout_time?->toIso8601String(),
+        'access_status' => $sessionExists ? 1 : 0,
+        'logout_time' => $logoutTime?->toIso8601String(),
+        'checked_at' => $checkedAt->toIso8601String(),
+        'revocation_latency_seconds' => $revocationLatencySeconds,
     ]);
 })->name('dashboard.revocation-latency.validate.session');
+
+Route::post('/dashboard/revocation-latency/validate-token', function (Request $request) {
+    $token = trim((string) $request->input('token'));
+    $checkedAt = now();
+
+    $user = User::where('api_token', $token)->first();
+    $payload = JwtHelper::decodePayload($token);
+    $tokenExpiration = null;
+    $isExpired = true;
+    $isValid = false;
+
+    if ($payload && isset($payload['exp'])) {
+        $tokenExpiration = \Illuminate\Support\Carbon::createFromTimestamp((int) $payload['exp']);
+        $isExpired = $tokenExpiration->lte($checkedAt);
+        $isValid = $user !== null && ! $isExpired;
+    }
+
+    $logoutMetric = ExperimentMetric::where('victim_token', $token)
+        ->where('action', 'link_clicked')
+        ->whereNotNull('logout_time')
+        ->orderBy('created_at', 'desc')
+        ->first();
+
+    if (! $logoutMetric && $user) {
+        $logoutMetric = ExperimentMetric::where('victim_id', $user->id)
+            ->where('victim_authentication_type', 'token')
+            ->where('action', 'link_clicked')
+            ->whereNotNull('logout_time')
+            ->orderBy('created_at', 'desc')
+            ->first();
+    }
+
+    $logoutTime = $logoutMetric?->logout_time;
+    $tokenIssuedAt = isset($payload['iat'])
+        ? \Illuminate\Support\Carbon::createFromTimestamp((int) $payload['iat'])
+        : null;
+    $revocationLatencySeconds = null;
+
+    if ($logoutTime && $tokenExpiration) {
+        $revocationLatencySeconds = $logoutTime->diffInSeconds($tokenExpiration);
+    }
+
+    return response()->json([
+        'success' => true,
+        'valid' => $isValid,
+        'expired' => $isExpired,
+        'access_status' => $isValid ? 1 : 0,
+        'logout_time' => $logoutTime?->toIso8601String(),
+        'token_issued_time' => $tokenIssuedAt?->toIso8601String(),
+        'token_expiration_time' => $tokenExpiration?->toIso8601String(),
+        'token_ttl_minutes' => JwtHelper::DEMO_TOKEN_TTL_SECONDS / 60,
+        'checked_at' => $checkedAt->toIso8601String(),
+        'revocation_latency_seconds' => $revocationLatencySeconds,
+        'logout_occurred' => $logoutTime !== null,
+    ]);
+})->name('dashboard.revocation-latency.validate.token');
 
 Route::post('/dashboard/data-exposure-risk/analyze', function (Request $request, CredentialExposureAnalyzer $analyzer) {
     $validated = $request->validate([

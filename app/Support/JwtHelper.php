@@ -4,6 +4,7 @@ namespace App\Support;
 
 class JwtHelper
 {
+    public const DEMO_TOKEN_TTL_SECONDS = 300;
     public static function encode(array $payload): string
     {
         $header = self::base64UrlEncode(json_encode(['typ' => 'JWT', 'alg' => 'HS256']));
