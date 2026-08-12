@@ -56,12 +56,16 @@ class RegisterController extends Controller
                 'string',
                 'min:8',
                 'confirmed',
-                'regex:/[A-Za-z]/',
+                'regex:/[A-Z]/',
+                'regex:/[a-z]/',
                 'regex:/[0-9]/',
                 'regex:/[@#$!]/',
             ],
         ], [
-            'password.regex' => 'Password must be at least 8 characters and include letters, at least one number, and at least one special character.',
+            'password.required' => 'Password is required.',
+            'password.min' => 'Password must be at least 8 characters.',
+            'password.confirmed' => 'Password confirmation does not match.',
+            'password.regex' => 'Password doesn\'t meet the above criteria. Please follow the password requirements.',
         ]);
     }
 
