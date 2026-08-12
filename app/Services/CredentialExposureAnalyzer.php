@@ -71,6 +71,7 @@ class CredentialExposureAnalyzer
                 'analyzed' => $token !== '',
                 'exposed_field_count' => count($exposedFields),
                 'exposed_fields' => $exposedFields,
+                'claim_details' => $this->buildClaimDetails($payload),
                 'claims' => $payload,
                 'token_length' => strlen($token),
                 'user_id' => $payload['sub'] ?? $payload['user_id'] ?? $payload['id'] ?? $user?->id,
@@ -86,6 +87,7 @@ class CredentialExposureAnalyzer
             'analyzed' => $token !== '',
             'exposed_field_count' => count($exposedFields),
             'exposed_fields' => $exposedFields,
+            'claim_details' => [],
             'claims' => [],
             'token_length' => strlen($token),
             'user_id' => $user?->id,
@@ -143,5 +145,58 @@ class CredentialExposureAnalyzer
     private function credentialContainsFieldReference(string $credential, string $field): bool
     {
         return (bool) preg_match('/(?:^|[\W_])'.preg_quote($field, '/').'(?:[\W_]|=|:|$)/i', $credential);
+    }
+
+    private function buildClaimDetails(array $payload): array
+    {
+        $descriptions = [
+            'sub' => 'user ID',
+            'user_id' => 'user ID',
+            'id' => 'user ID',
+            'uid' => 'user ID',
+            'email' => "user's email",
+            'mail' => "user's email",
+            'role' => "user's role",
+            'roles' => "user's roles",
+            'name' => "user's name",
+            'username' => "user's username",
+            'exp' => 'token expiration time',
+            'iat' => 'token issued at time',
+            'nbf' => 'token not-before time',
+            'iss' => 'token issuer',
+            'aud' => 'token audience',
+            'jti' => 'token identifier',
+        ];
+
+        $details = [];
+
+        foreach ($payload as $key => $value) {
+            $normalizedKey = strtolower((string) $key);
+
+            if (! in_array($normalizedKey, self::IDENTITY_CLAIMS, true)) {
+                continue;
+            }
+
+            $details[] = [
+                'claim' => (string) $key,
+                'description' => $descriptions[$normalizedKey] ?? 'identity claim',
+                'value' => $this->formatClaimValue($normalizedKey, $value),
+            ];
+        }
+
+        return $details;
+    }
+
+    private function formatClaimValue(string $claim, mixed $value): string
+    {
+        if (in_array($claim, ['exp', 'iat', 'nbf'], true) && is_numeric($value)) {
+            return date('Y-m-d H:i:s', (int) $value);
+        }
+
+        if (is_array($value)) {
+            return json_encode($value);
+        }
+
+        return (string) $value;
     }
 }

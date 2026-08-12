@@ -200,11 +200,13 @@
                         <dd class="col-6" id="token-length">—</dd>
                         <dt class="col-6">Exposed claims</dt>
                         <dd class="col-6" id="token-elements">—</dd>
-                        <dt class="col-6">Claim list</dt>
-                        <dd class="col-6" id="token-claim-list">—</dd>
-                        <dt class="col-6">User ID</dt>
-                        <dd class="col-6" id="token-user-id">—</dd>
                     </dl>
+                    <div class="mt-3">
+                        <p class="mb-2 fw-semibold">Claim details</p>
+                        <ul class="mb-0 ps-3" id="token-claim-list">
+                            <li class="text-secondary">Run the token test to decode exposed JWT claims.</li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </div>
@@ -362,16 +364,34 @@
             }
         }
 
+        function formatClaimDetails(claimDetails) {
+            if (!claimDetails || claimDetails.length === 0) {
+                return '<li class="text-secondary">No identity claims detected in the captured token.</li>';
+            }
+
+            return claimDetails.map((claim) => {
+                const label = claim.claim.charAt(0).toUpperCase() + claim.claim.slice(1);
+                return `<li><strong>${label}</strong>: ${claim.value} (${claim.description})</li>`;
+            }).join('');
+        }
+
+        function formatClaimSummary(claimDetails) {
+            if (!claimDetails || claimDetails.length === 0) {
+                return 'None detected';
+            }
+
+            return claimDetails.map((claim) => claim.claim).join(', ');
+        }
+
         function updateTokenSummary(tokenData) {
             document.getElementById('token-found').textContent = tokenData?.found ? 'Yes' : 'No';
             document.getElementById('token-length').textContent = tokenData?.token_length ?? '—';
             document.getElementById('token-elements').textContent = tokenData?.exposed_field_count ?? '—';
-            document.getElementById('token-claim-list').textContent = formatFieldList(tokenData?.exposed_fields);
-            document.getElementById('token-user-id').textContent = tokenData?.user_id ?? '—';
+            document.getElementById('token-claim-list').innerHTML = formatClaimDetails(tokenData?.claim_details);
 
             if (tokenData?.analyzed) {
                 document.getElementById('token-chart-detail').textContent =
-                    `IES = ${tokenData.exposed_field_count} (${formatFieldList(tokenData.exposed_fields)})`;
+                    `IES = ${tokenData.exposed_field_count} (${formatClaimSummary(tokenData.claim_details)})`;
             }
         }
 
