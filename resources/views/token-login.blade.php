@@ -28,7 +28,7 @@
                             </div>
                         </div>
 
-                        <button type="button" id="api-login-button" class="btn btn-success">Login with token</button>
+                        <button type="button" id="api-login-button" class="btn btn-danger">Login with token</button>
                         <!-- <a href="{{ route('comparison.dashboard') }}" class="btn btn-outline-secondary">View Comparison</a> -->
                     </form>
 
