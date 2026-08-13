@@ -34,54 +34,6 @@
         <div class="col">
             <div class="card shadow-sm border-0">
                 <div class="card-header bg-primary text-white border-0">
-                    <h2 class="h5 mb-1">Token Hijacking Attack</h2>
-                </div>
-
-                <ul class="list-group list-group-flush">
-                    <li class="list-group-item py-3">
-                        <div class="d-flex justify-content-between align-items-center gap-3">
-                            <span class="text-secondary">Browser A (victim)</span>
-                            <span class="fw-semibold">{{ $tokenVictimName }} is logged in and clicks the phishing link.</span>
-                        </div>
-                    </li>
-
-                    <li class="list-group-item py-3">
-                        <div class="d-flex justify-content-between align-items-center gap-3">
-                            <span class="text-secondary">Captured token ID</span>
-                            <span class="fw-semibold text-break">{{ $tokenVictimToken }}</span>
-                        </div>
-                    </li>
-
-                    <li class="list-group-item py-3">
-                        <div class="d-flex justify-content-between align-items-center gap-3">
-                            <span class="text-secondary">Authentication Method</span>
-                            <span class="fw-semibold">Token-Based</span>
-                        </div>
-                    </li>
-
-                    <li class="list-group-item py-3">
-                        <div class="d-flex justify-content-between align-items-center gap-3">
-                            <span class="text-secondary">Time</span>
-                            <span class="fw-semibold">{{ $tokenPhishTime }}</span>
-                        </div>
-                    </li>
-
-                    <li class="list-group-item py-3">
-                    <div class="d-flex justify-content-between align-items-center gap-3">
-                        <textarea id="captured-token" class="form-control form-control-sm" rows="2" placeholder="Type captured token here..."></textarea>
-                    </div>
-                </li>
-                </ul>
-
-                <div class="card-body">
-                    <button id="analyze-token-risk" type="button" class="btn btn-primary">Analyze Token Risk</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="col">
-            <div class="card shadow-sm border-0">
-                <div class="card-header bg-danger text-white border-0">
                     <h2 class="h5 mb-1">Session Hijacking Attack</h2>
                 </div>
 
@@ -122,7 +74,7 @@
                 </ul>
 
                 <div class="card-body">
-                    <button id="analyze-session-risk" type="button" class="btn btn-danger">Analyze Session Risk</button>
+                    <button id="analyze-session-risk" type="button" class="btn btn-primary">Analyze Session Risk</button>
                 </div>
 
                 {{-- <div class="card-body">
@@ -134,6 +86,54 @@
                         "session_id": "AwFyOkIrjamLOK0OohcZZOsYKnIWECJZirbWOZ5b"
                         }</textarea>
                 </div> --}}
+            </div>
+        </div>
+
+        <div class="col">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-danger text-white border-0">
+                    <h2 class="h5 mb-1">Token Hijacking Attack</h2>
+                </div>
+
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item py-3">
+                        <div class="d-flex justify-content-between align-items-center gap-3">
+                            <span class="text-secondary">Browser A (victim)</span>
+                            <span class="fw-semibold">{{ $tokenVictimName }} is logged in and clicks the phishing link.</span>
+                        </div>
+                    </li>
+
+                    <li class="list-group-item py-3">
+                        <div class="d-flex justify-content-between align-items-center gap-3">
+                            <span class="text-secondary">Captured token ID</span>
+                            <span class="fw-semibold text-break">{{ $tokenVictimToken }}</span>
+                        </div>
+                    </li>
+
+                    <li class="list-group-item py-3">
+                        <div class="d-flex justify-content-between align-items-center gap-3">
+                            <span class="text-secondary">Authentication Method</span>
+                            <span class="fw-semibold">Token-Based</span>
+                        </div>
+                    </li>
+
+                    <li class="list-group-item py-3">
+                        <div class="d-flex justify-content-between align-items-center gap-3">
+                            <span class="text-secondary">Time</span>
+                            <span class="fw-semibold">{{ $tokenPhishTime }}</span>
+                        </div>
+                    </li>
+
+                    <li class="list-group-item py-3">
+                    <div class="d-flex justify-content-between align-items-center gap-3">
+                        <textarea id="captured-token" class="form-control form-control-sm" rows="2" placeholder="Type captured token here..."></textarea>
+                    </div>
+                </li>
+                </ul>
+
+                <div class="card-body">
+                    <button id="analyze-token-risk" type="button" class="btn btn-danger">Analyze Token Risk</button>
+                </div>
             </div>
         </div>
     </div>

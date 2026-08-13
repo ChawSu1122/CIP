@@ -160,9 +160,9 @@
             </div>
 
             <ul class="menu">
-                <li>
+                <!-- <li>
                     <a href="/dashboard" class="menu-item {{ request()->is('dashboard') ? 'active' : '' }}">Dashboard</a>
-                </li>
+                </li> -->
                 <li>
                     <a href="/dashboard/revocation-latency" class="menu-item {{ request()->is('dashboard/revocation-latency') ? 'active' : '' }}">Revocation Latency</a>
                 </li>
