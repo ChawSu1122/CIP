@@ -95,6 +95,12 @@ class LoginController extends Controller
 
         $this->guard()->logout();
 
+        $request->session()->forget([
+            'victim_authentication_type',
+            'victim_session_id',
+            'victim_token',
+            'victim_logout_time',
+        ]);
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 

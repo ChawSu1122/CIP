@@ -104,6 +104,21 @@ class ReplayAttackPhishClickTest extends TestCase
             ->assertRedirect(route('token.login'));
     }
 
+    public function test_logout_clears_authentication_state(): void
+    {
+        $victim = User::factory()->create([
+            'name' => 'Bob',
+            'email' => 'bob@gmail.com',
+        ]);
+
+        $this->actingAs($victim)
+            ->withSession(['victim_authentication_type' => 'session']);
+
+        $this->post(route('logout'));
+
+        $this->assertGuest();
+    }
+
     public function test_reset_clears_active_phished_credentials(): void
     {
         ExperimentMetric::create([

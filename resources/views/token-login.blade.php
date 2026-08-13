@@ -145,7 +145,7 @@
                 sessionResponse.status === 303 ||
                 sessionResponse.ok;
 
-            if (sessionOk) {
+            if (sessionOk || response.ok) {
                 await fetch('{{ route('dashboard.revocation-latency.security-alert.clear-on-login') }}', {
                     method: 'POST',
                     credentials: 'same-origin',
