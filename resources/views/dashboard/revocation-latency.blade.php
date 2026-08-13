@@ -192,10 +192,14 @@
     </div>
 </div>
 
+<h1 class="page-title mt-5 mb-3">Attack Success Rate Comparison</h1>
+        <!-- <h2 class="h5 mb-1">Attack Success Rate Comparison</h2> -->
+        <p class="mb-0 small text-secondary">Each Unauthorized Access click in the Session Hijacking and Token Hijacking attacks above counts as one attempt. The outcome (Success / 200 OK or Access Denied / 401) is taken from the graph and reflected below.</p>
 <div id="attack-success-rate-section" class="card shadow-sm border-0 mt-4 d-none">
     <div class="card-header bg-white border-0">
-        <h2 class="h5 mb-1">Attack Success Rate Comparison</h2>
-        <p class="mb-0 small text-secondary">Each Unauthorized Access click in the Session Hijacking and Token Hijacking attacks above counts as one attempt. The outcome (Success / 200 OK or Access Denied / 401) is taken from the graph and reflected below.</p>
+        <!-- <h1 class="page-title mb-1">Attack Success Rate Comparison</h1> -->
+        <!-- <h2 class="h5 mb-1">Attack Success Rate Comparison</h2> -->
+        <!-- <p class="mb-0 small text-secondary">Each Unauthorized Access click in the Session Hijacking and Token Hijacking attacks above counts as one attempt. The outcome (Success / 200 OK or Access Denied / 401) is taken from the graph and reflected below.</p> -->
     </div>
     <div class="card-body">
         <div class="table-responsive">
@@ -230,6 +234,25 @@
         <div style="position: relative; height: 260px;">
             <canvas id="attackSuccessRateChart"></canvas>
         </div>
+        <div class="border rounded p-3 mt-4 bg-light">
+            <p class="mb-2"><strong>Description:</strong> Session access is invalidated immediately when the victim logs out, so unauthorized access attempts are quickly denied. Token access remains valid until the JWT naturally expires, giving the attacker a longer window to successfully replay the captured credential.</p>
+            <p class="mb-1"><strong>Metric for Calculation:</strong> Attack Success Rate (ASR)</p>
+            <div class="rl-metric-formula-box">
+                <span id="asr-metric-formula"></span>
+            </div>
+            <p class="mb-1"><strong>Definition:</strong> Attack success rate measures the proportion of unauthorized access attempts that succeed out of the total attempts made by the attacker.</p>
+            <p class="mb-1"><strong>Session ASR Calculation:</strong> Successful Attempts / Total Attempts</p>
+            <p class="mb-1 fs-5 fw-bold" id="session-asr-result">Session ASR Calculation:</p>
+            <p class="mb-1"><strong>Token ASR Calculation:</strong> Successful Attempts / Total Attempts</p>
+            <p class="mb-0 fs-5 fw-bold" id="token-asr-result">Token ASR Calculation:</p>
+        </div>
+    </div>
+</div>
+
+<div id="attack-success-comparison-result-card" class="card shadow-sm border-0 mt-4 d-none">
+    <div class="card-body">
+        <h3 class="h5 mb-2">Comparison Result</h3>
+        <p id="attack-success-comparison-result-text" class="mb-0 fw-bold text-success fs-4"></p>
     </div>
 </div>
 
@@ -237,6 +260,11 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
     katex.render('RL = T_{\\text{Access Invalid}} - T_{\\text{Revocation}}', document.getElementById('rl-metric-formula'), {
+        displayMode: true,
+        throwOnError: false,
+    });
+
+    katex.render('ASR = \\frac{N_{\\text{Successful Access}}}{N_{\\text{Total Attempts}}} \\times 100\\%', document.getElementById('asr-metric-formula'), {
         displayMode: true,
         throwOnError: false,
     });
@@ -304,6 +332,10 @@
         const tokenSuccessesEl = document.getElementById('token-successes');
         const tokenFailuresEl = document.getElementById('token-failures');
         const tokenSuccessRateEl = document.getElementById('token-success-rate');
+        const sessionAsrResultEl = document.getElementById('session-asr-result');
+        const tokenAsrResultEl = document.getElementById('token-asr-result');
+        const attackSuccessComparisonCard = document.getElementById('attack-success-comparison-result-card');
+        const attackSuccessComparisonText = document.getElementById('attack-success-comparison-result-text');
 
         function syncVictimLogoutTimes() {
             const sessionTs = Number(window.localStorage.getItem(sessionLogoutEventKey) || '0');
@@ -762,6 +794,7 @@
             renderTokenRL();
             window.localStorage.removeItem(chartStateKey);
             hideAlert();
+            chartSection.classList.add('d-none');
 
             if (revocationChart) {
                 revocationChart.data.datasets = [
@@ -769,9 +802,6 @@
                     buildDataset(tokenState, 'Token (Expires After 5 Minutes)', '#dc3545', 'rgba(220, 53, 69, 0.08)'),
                 ];
                 revocationChart.update();
-            } else {
-                ensureChartVisible();
-                renderChart();
             }
         }
 
@@ -902,6 +932,55 @@
                     attackSuccessRateChart.update();
                 }
             }
+
+            updateAttackSuccessRateResults();
+        }
+
+        function updateAttackSuccessRateResults() {
+            const session = attackSuccessRateState.session;
+            const token = attackSuccessRateState.token;
+
+            sessionAsrResultEl.textContent = session.attempts
+                ? `Session ASR Calculation: ${session.successes} / ${session.attempts} = ${getSuccessRate('session')}%`
+                : 'Session ASR Calculation:';
+            sessionAsrResultEl.className = 'mb-1 fs-5 fw-bold';
+
+            tokenAsrResultEl.textContent = token.attempts
+                ? `Token ASR Calculation: ${token.successes} / ${token.attempts} = ${getSuccessRate('token')}%`
+                : 'Token ASR Calculation:';
+            tokenAsrResultEl.className = 'mb-0 fs-5 fw-bold';
+
+            updateAttackSuccessComparisonResult();
+        }
+
+        function updateAttackSuccessComparisonResult() {
+            const sessionRate = getSuccessRate('session');
+            const tokenRate = getSuccessRate('token');
+
+            if (sessionRate === null || tokenRate === null) {
+                attackSuccessComparisonCard.classList.add('d-none');
+                return;
+            }
+
+            attackSuccessComparisonCard.classList.remove('d-none');
+
+            if (sessionRate < tokenRate) {
+                attackSuccessComparisonText.textContent =
+                    `Session is winner. Session-based authentication achieves a lower attack success rate (${sessionRate}%) than token-based authentication (${tokenRate}%), indicating that the session-based mechanism is more secure and exhibits greater resilience against credential hijacking.`;
+                attackSuccessComparisonText.className = 'mb-0 fw-bold text-success fs-4';
+                return;
+            }
+
+            if (tokenRate < sessionRate) {
+                attackSuccessComparisonText.textContent =
+                    `Token is winner. Token-based authentication achieves a lower attack success rate (${tokenRate}%) than session-based authentication (${sessionRate}%), indicating that the token-based mechanism is more secure and exhibits greater resilience against credential hijacking.`;
+                attackSuccessComparisonText.className = 'mb-0 fw-bold text-danger fs-4';
+                return;
+            }
+
+            attackSuccessComparisonText.textContent =
+                `Both are winners. Both authentication mechanisms achieve an equal attack success rate (${sessionRate}%), indicating comparable security resilience against credential hijacking.`;
+            attackSuccessComparisonText.className = 'mb-0 fw-bold text-warning fs-4';
         }
 
         function renderAttackSuccessRateChart() {
