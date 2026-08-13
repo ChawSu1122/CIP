@@ -88,4 +88,18 @@ class LoginController extends Controller
 
         return $this->sendFailedLoginResponse($request);
     }
+
+    public function logout(Request $request)
+    {
+        $authType = $request->session()->get('victim_authentication_type', 'session');
+
+        $this->guard()->logout();
+
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        $redirectRoute = $authType === 'token' ? 'token.login' : 'session.login';
+
+        return redirect()->route($redirectRoute);
+    }
 }

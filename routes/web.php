@@ -226,11 +226,13 @@ Route::post('/dashboard/revocation-latency/security-alert/respond', function (Re
     $request->session()->invalidate();
     $request->session()->regenerateToken();
 
+    $redirectRoute = $event->type === 'token' ? 'token.login' : 'session.login';
+
     return response()->json([
         'success' => true,
         'action' => 'logout',
         'type' => $event->type,
-        'redirect' => route('/register'),
+        'redirect' => route($redirectRoute),
     ]);
 })->middleware('auth')->name('dashboard.revocation-latency.security-alert.respond');
 Route::post('/victim/logout', function (Request $request) {

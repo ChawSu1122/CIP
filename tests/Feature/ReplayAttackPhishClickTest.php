@@ -76,6 +76,34 @@ class ReplayAttackPhishClickTest extends TestCase
         $response->assertSee('Session is winner because Revocation Latency of Session is less than Revocation Latency of Token.');
     }
 
+    public function test_session_logout_redirects_to_session_login_page(): void
+    {
+        $victim = User::factory()->create([
+            'name' => 'Bob',
+            'email' => 'bob@gmail.com',
+        ]);
+
+        $this->actingAs($victim)
+            ->withSession(['victim_authentication_type' => 'session']);
+
+        $this->post(route('logout'))
+            ->assertRedirect(route('session.login'));
+    }
+
+    public function test_token_logout_redirects_to_token_login_page(): void
+    {
+        $victim = User::factory()->create([
+            'name' => 'Bob',
+            'email' => 'bob@gmail.com',
+        ]);
+
+        $this->actingAs($victim)
+            ->withSession(['victim_authentication_type' => 'token']);
+
+        $this->post(route('logout'))
+            ->assertRedirect(route('token.login'));
+    }
+
     public function test_reset_clears_active_phished_credentials(): void
     {
         ExperimentMetric::create([
