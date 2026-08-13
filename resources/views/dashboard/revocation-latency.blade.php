@@ -807,7 +807,6 @@
                 }),
                 borderColor: color,
                 backgroundColor: backgroundColor,
-                stepped: 'after',
                 fill: false,
                 tension: 0,
                 pointRadius: function (context) {
@@ -1072,7 +1071,7 @@
                 : Math.min(5, denialMinute);
 
             if (!tokenState.expiryMarkerAdded) {
-                addMarker(expirationMinute, 'Event: Token Expired', '#dc2626', 'token', 'callout');
+                addMarker(expirationMinute, '', '#dc2626', 'token', 'line');
                 tokenState.expiryMarkerAdded = true;
             }
 
