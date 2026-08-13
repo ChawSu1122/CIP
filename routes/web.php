@@ -90,7 +90,10 @@ Route::view('/token-demo', 'token-demo')->name('token.demo');
 Route::view('/dashboard/scalability', 'dashboard.scalability')->name('dashboard.scalability');
 Route::view('/dashboard/storage', 'dashboard.storage')->name('dashboard.storage');
 Route::view('/dashboard/security', 'dashboard.security')->name('dashboard.security');
-Route::view('/dashboard', 'dashboard')->name('dashboard');
+Route::get('/dashboard', function () {
+    return redirect()->route('dashboard.revocation-latency');
+})->name('dashboard');
+
 Route::view('/dashboard/revocation-latency', 'dashboard.revocation-latency')->name('dashboard.revocation-latency');
 Route::post('/dashboard/revocation-latency/reset-captured-credentials', function () {
     ExperimentMetric::where('auth_type', 'phish')

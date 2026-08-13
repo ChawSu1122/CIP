@@ -5,7 +5,7 @@
     <div class="row gx-4">
         <div class="col-lg-8">
             <div class="card shadow-sm border-0 mb-4">
-                <img src="{{ $post->feature_image }}" class="img-fluid rounded-top" alt="Featured image" style="max-height: 420px; object-fit: cover;">
+                <img src="{{ $post->feature_image }}" class="img-fluid rounded-top w-100" alt="Featured image" style="height: 420px; object-fit: contain; object-position: center; background: #f8f9fa;">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start mb-3">
                         <div>
@@ -107,14 +107,14 @@
                 </div>
             </div>
             <div class="card shadow-sm border-0">
-                <div class="card-body">
+                <!-- <div class="card-body">
                     <h2 class="h6 mb-3">Research links</h2>
                     <ul class="list-unstyled mb-0">
                         <li class="mb-2"><a href="{{ route('comparison.dashboard') }}" class="text-decoration-none">Authentication Comparison</a></li>
                         <li class="mb-2"><a href="{{ route('thesis.experiment') }}" class="text-decoration-none">Experiment Dashboard</a></li>
                         <li><a href="{{ route('presentation.summary') }}" class="text-decoration-none">Presentation Summary</a></li>
                     </ul>
-                </div>
+                </div> -->
             </div>
         </div>
     </div>

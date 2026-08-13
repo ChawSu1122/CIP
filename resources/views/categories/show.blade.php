@@ -18,7 +18,7 @@
                 <div class="card shadow-sm border-0">
                     <div class="row g-0 align-items-center">
                         <div class="col-md-4">
-                            <img src="{{ $post->feature_image }}" class="img-fluid rounded-start h-100" style="object-fit: cover; min-height: 220px;" alt="Featured image">
+                            <img src="{{ $post->feature_image }}" class="img-fluid rounded-start w-100" style="height: 220px; object-fit: contain; object-position: center; background: #f8f9fa;" alt="Featured image">
                         </div>
                         <div class="col-md-8">
                             <div class="card-body">

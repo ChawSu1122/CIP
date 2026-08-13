@@ -14,7 +14,7 @@
             @auth
                 <a href="{{ route('posts.create') }}" class="btn btn-primary me-2 mb-2">New Discussion</a>
             @endauth
-            <a href="{{ route('forum.features') }}" class="btn btn-outline-secondary mb-2">View Features</a>
+            <!-- <a href="{{ route('forum.features') }}" class="btn btn-outline-secondary mb-2">View Features</a> -->
         </div>
     </div>
 
@@ -32,7 +32,7 @@
                 <div class="card shadow-sm mb-4 border-0">
                     <div class="row g-0 align-items-center">
                         <div class="col-md-4">
-                            <img src="{{ $post->feature_image }}" class="img-fluid rounded-start h-100" style="object-fit: cover; min-height: 200px;" alt="Featured image">
+                            <img src="{{ $post->feature_image }}" class="img-fluid rounded-start w-100" style="height: 220px; object-fit: contain; object-position: center; background: #f8f9fa;" alt="Featured image">
                         </div>
                         <div class="col-md-8">
                             <div class="card-body">
@@ -83,14 +83,14 @@
             </div>
 
             <div class="card shadow-sm border-0">
-                <div class="card-body">
+                <!-- <div class="card-body">
                     <h2 class="h6">Community tools</h2>
                     <ul class="list-unstyled mb-0 text-muted">
                         <li class="mb-2"><strong>Session login</strong> for browser-based members.</li>
                         <li class="mb-2"><strong>Token login</strong> for API and client integrations.</li>
                         <li class="mb-2"><strong>Live metrics</strong> for security, storage, and scalability comparisons.</li>
                     </ul>
-                </div>
+                </div> -->
             </div>
         </div>
     </div>

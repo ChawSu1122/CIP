@@ -52,9 +52,9 @@
                                 </ul>
                             </li>
                             <li class="nav-item dropdown">
-                                <a class="nav-link dropdown-toggle" href="#" id="researchDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <!-- <a class="nav-link dropdown-toggle" href="#" id="researchDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                     Options
-                                </a>
+                                </a> -->
                                 <ul class="dropdown-menu" aria-labelledby="researchDropdown">
                                     <!-- <li><a class="dropdown-item" href="{{ route('comparison.dashboard') }}">Comparison Dashboard</a></li>
                                     <li><hr class="dropdown-divider"></li> -->

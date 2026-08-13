@@ -19,24 +19,60 @@ class PostFactory extends Factory
      */
     public function definition(): array
     {
+        $title = fake()->randomElement([
+            'Looking for a laptop that can play games and run engineering apps',
+            'Selling my office desktop with GTX 1660 and 32GB RAM',
+            'Best place to buy a second-hand laptop in Yangon?',
+            'Need advice: gaming laptop vs desktop for CAD work',
+            'Selling a MacBook Air with warranty, what price is fair?',
+            'What should I check before buying a used PC from a local seller?',
+            'Laptop buyers: are you checking serial numbers and invoices?',
+            'Help: I need a student laptop that can also handle light engineering tools',
+            'Where to find a good deal on refurbished desktops for programming',
+            'Community recommendation: safe meetup spots in Yangon for hardware pickup',
+        ]);
+
         return [
-            'title' => fake()->randomElement([
-                'Looking for a laptop that can play games and run engineering apps',
-                'Selling my office desktop with GTX 1660 and 32GB RAM',
-                'Best place to buy a second-hand laptop in Yangon?',
-                'Need advice: gaming laptop vs desktop for CAD work',
-                'Selling a MacBook Air with warranty, what price is fair?',
-                'What should I check before buying a used PC from a local seller?',
-                'Laptop buyers: are you checking serial numbers and invoices?',
-                'Help: I need a student laptop that can also handle light engineering tools',
-                'Where to find a good deal on refurbished desktops for programming',
-                'Community recommendation: safe meetup spots in Yangon for hardware pickup',
-            ]),
+            'title' => $title,
             'body' => $this->generateCommunityBody(),
             'user_id' => User::factory(),
             'category_id' => Category::inRandomOrder()->value('id') ?: Category::factory(),
-            'feature_image' => 'https://picsum.photos/800/600?random=' . fake()->unique()->numberBetween(1, 1000)
+            'feature_image' => $this->nextUniqueTechImage(),
         ];
+    }
+
+    protected function nextUniqueTechImage(): string
+    {
+        static $index = 0;
+
+        $images = [
+            'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=1200&q=80',
+            'https://images.unsplash.com/photo-1587202372775-e229f172b9d7?auto=format&fit=crop&w=1200&q=80',
+            'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=1200&q=80',
+            'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80',
+            'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1200&q=80',
+            'https://images.unsplash.com/photo-1545239351-1141bd82e8a6?auto=format&fit=crop&w=1200&q=80',
+            'https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=1200&q=80',
+            'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1200&q=80',
+            'https://images.unsplash.com/photo-1556740749-887f6717d7e4?auto=format&fit=crop&w=1200&q=80',
+            'https://images.unsplash.com/photo-1551818255-e6e10975bc17?auto=format&fit=crop&w=1200&q=80',
+            'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=1200&q=80',
+            'https://images.unsplash.com/photo-1515879218367-8466d910aaa4?auto=format&fit=crop&w=1200&q=80',
+            'https://images.unsplash.com/photo-1531482615713-2afd69097998?auto=format&fit=crop&w=1200&q=80',
+            'https://images.unsplash.com/photo-1562813733-b31f71025d54?auto=format&fit=crop&w=1200&q=80',
+            'https://images.unsplash.com/photo-1591207779412-4513e874d9f5?auto=format&fit=crop&w=1200&q=80',
+            'https://images.unsplash.com/photo-1571171637578-41bc2dd41cd2?auto=format&fit=crop&w=1200&q=80',
+            'https://images.unsplash.com/photo-1616588589676-62b3bd4ff6d2?auto=format&fit=crop&w=1200&q=80',
+            'https://images.unsplash.com/photo-1581092921461-eab62e97a6d0?auto=format&fit=crop&w=1200&q=80',
+            'https://images.unsplash.com/photo-1580894894517-7c0d9f3e68c3?auto=format&fit=crop&w=1200&q=80',
+            'https://images.unsplash.com/photo-1573164713714-d95e436ab8d6?auto=format&fit=crop&w=1200&q=80',
+            'https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?auto=format&fit=crop&w=1200&q=80',
+        ];
+
+        $image = $images[$index % count($images)];
+        $index++;
+
+        return $image;
     }
 
     protected function generateCommunityBody(): string

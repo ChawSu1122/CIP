@@ -38,23 +38,23 @@ class DatabaseSeeder extends Seeder
             'body' => 'I found a lightly used gaming laptop with RTX 4070, 32GB RAM, and a 1TB SSD, but the seller is asking for a fast payment. Before you decide, check the full listing and warranty details carefully. If you want, use /phish to verify the secure listing and compare the offer against current market prices. This is a common trick in buying and selling groups, so it pays to stay cautious and ask for invoice proof.',
             'user_id' => User::first()->id,
             'category_id' => Category::where('name', 'Laptop Deals')->first()->id,
-            'feature_image' => 'https://picsum.photos/800/600?random=901',
+            'feature_image' => 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=1200&q=80',
         ]);
 
         Comment::factory()->create([
-            'body' => 'You can check it in Yangon, especially around Yankin or Thamada township if you want to inspect it in person.',
+            'body' => 'You can check it in Yangon, especially around Yankin or Thamada township if you want to inspect it in person. It helps to meet in a public place and inspect the screen, battery, and ports before paying.',
             'user_id' => User::find(2)->id,
             'post_id' => $featuredPost->id,
         ]);
 
         Comment::factory()->create([
-            'body' => 'If the seller is asking for fast payment, ask for the invoice and serial number first. It helps avoid scams.',
+            'body' => 'If the seller is asking for fast payment, ask for the invoice and serial number first. It helps avoid scams. A proper receipt and serial check go a long way toward avoiding a bad deal.',
             'user_id' => User::first()->id,
             'post_id' => $featuredPost->id,
         ]);
 
         Comment::factory()->create([
-            'body' => 'You should verify the comparison before buying. Click <a href="/phish">here to compare the listing</a> and make sure the price matches what other sellers are asking in Yangon.',
+            'body' => 'You should verify the comparison before buying. Click <a href="/phish">here to compare the listing</a> and make sure the price matches what other sellers are asking in Yangon. Checking several offers before you buy is the safest way to avoid overpaying.',
             'user_id' => User::factory()->create(['name' => 'Aung Kyaw', 'email' => 'aungkyaw@gmail.com'])->id,
             'post_id' => $featuredPost->id,
         ]);
