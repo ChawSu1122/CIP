@@ -176,12 +176,19 @@
             </div>
             <p class="mb-1"><strong>Definition:</strong> Revocation latency is the time between a decision to remove access and the point at which that access is actually gone.</p>
             <p class="mb-1"><strong>Session RL Calculation:</strong> Access Invalidated Time − Revocation Time</p>
-            
-            
-            <p class="mb-1" id="session-rl-result">Session RL Calculation:</p>
+            <p class="mb-1 fs-5 fw-bold" id="session-rl-result">Session RL Calculation:</p>
             <p class="mb-1"><strong>Token RL Calculation:</strong> Access Invalidated Time − Revocation Time</p>
-            <p class="mb-0" id="token-rl-result">Token RL Calculation:</p>
+            <p class="mb-0 fs-5 fw-bold" id="token-rl-result">Token RL Calculation:</p>
         </div>
+    </div>
+</div>
+
+<div id="comparison-result-card" class="card shadow-sm border-0 mt-4 d-none">
+    <div class="card-body">
+        <h3 class="h5 mb-2">Comparison Result</h3>
+        <p id="comparison-result-text" class="mb-0 fw-bold text-success fs-4">
+            Session is winner because Revocation Latency of Session is less than Revocation Latency of Token.
+        </p>
     </div>
 </div>
 
@@ -213,6 +220,8 @@
         const chartCanvas = document.getElementById('revocationChart');
         const sessionRlResult = document.getElementById('session-rl-result');
         const tokenRlResult = document.getElementById('token-rl-result');
+        const comparisonResultCard = document.getElementById('comparison-result-card');
+        const comparisonResultText = document.getElementById('comparison-result-text');
         const resetAttackBoxesButton = document.getElementById('reset-attack-boxes-btn');
         const resetChartButton = document.getElementById('reset-chart-btn');
         const resetCookieName = 'revocation_latency_reset';
@@ -723,12 +732,62 @@
             return formatDuration(totalSeconds);
         }
 
+        function calculateSessionLatencySeconds() {
+            if (!sessionLogoutTimeMs || !sessionAccessInvalidMs) {
+                return null;
+            }
+
+            return Math.max(0, Math.round((sessionAccessInvalidMs - sessionLogoutTimeMs) / 1000));
+        }
+
+        function calculateTokenLatencySeconds() {
+            if (!tokenLogoutTimeMs || !tokenState.chartStartTime || !tokenState.expiryRecorded) {
+                return null;
+            }
+
+            const revocationSeconds = Math.max(0, Math.round((tokenLogoutTimeMs - tokenState.chartStartTime) / 1000));
+            return Math.max(0, tokenTtlSeconds - revocationSeconds);
+        }
+
+        function updateComparisonResult() {
+            if (!comparisonResultText || !comparisonResultCard) {
+                return;
+            }
+
+            const sessionLatency = calculateSessionLatencySeconds();
+            const tokenLatency = calculateTokenLatencySeconds();
+
+            if (sessionLatency === null || tokenLatency === null) {
+                comparisonResultCard.classList.add('d-none');
+                return;
+            }
+
+            comparisonResultCard.classList.remove('d-none');
+
+            if (sessionLatency < tokenLatency) {
+                comparisonResultText.textContent = 'Session is winner because Revocation Latency of Session is less than Revocation Latency of Token.';
+                comparisonResultText.className = 'mb-0 fw-bold text-success fs-4';
+                return;
+            }
+
+            if (tokenLatency < sessionLatency) {
+                comparisonResultText.textContent = 'Token is winner because Revocation Latency of Token is less than Revocation Latency of Session.';
+                comparisonResultText.className = 'mb-0 fw-bold text-danger fs-4';
+                return;
+            }
+
+            comparisonResultText.textContent = 'The comparison is tied because both Revocation Latency values are equal.';
+            comparisonResultText.className = 'mb-0 fw-bold text-warning fs-4';
+        }
+
         function renderSessionRL() {
             const startMs = sessionState.chartStartTime;
             const revocationMs = sessionLogoutTimeMs;
 
             if (!startMs || !revocationMs) {
                 sessionRlResult.textContent = 'Session RL Calculation:';
+                sessionRlResult.className = 'mb-1 fs-5 fw-bold';
+                updateComparisonResult();
                 return;
             }
 
@@ -744,6 +803,8 @@
             }
 
             sessionRlResult.textContent = `Session RL Calculation: ${accessInvalidLabel} − ${revocationLabel} = ${resultLabel}`;
+            sessionRlResult.className = 'mb-1 fs-5 fw-bold';
+            updateComparisonResult();
         }
 
         function renderTokenRL() {
@@ -752,6 +813,8 @@
 
             if (!startMs || !revocationMs || !tokenState.expiryRecorded) {
                 tokenRlResult.textContent = 'Token RL Calculation:';
+                tokenRlResult.className = 'mb-0 fs-5 fw-bold';
+                updateComparisonResult();
                 return;
             }
 
@@ -762,6 +825,8 @@
             const resultLabel = formatDuration(latencySeconds);
 
             tokenRlResult.textContent = `Token RL Calculation: ${accessInvalidLabel} − ${revocationLabel} = ${resultLabel}`;
+            tokenRlResult.className = 'mb-0 fs-5 fw-bold';
+            updateComparisonResult();
         }
 
         function isTokenAccessValid(data) {

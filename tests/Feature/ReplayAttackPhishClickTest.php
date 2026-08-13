@@ -67,6 +67,15 @@ class ReplayAttackPhishClickTest extends TestCase
         $response->assertSee('captured-token-123');
     }
 
+    public function test_revocation_latency_page_shows_comparison_result_banner(): void
+    {
+        $response = $this->get('/dashboard/revocation-latency');
+
+        $response->assertStatus(200);
+        $response->assertSee('Comparison Result');
+        $response->assertSee('Session is winner because Revocation Latency of Session is less than Revocation Latency of Token.');
+    }
+
     public function test_reset_clears_active_phished_credentials(): void
     {
         ExperimentMetric::create([
