@@ -3,6 +3,22 @@
 @section('title', 'Revocation Latency')
 
 @section('content')
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
+<style>
+    .rl-metric-formula-box {
+        width: fit-content;
+        margin: 0.5rem auto;
+        padding: 0.75rem 1.5rem;
+        background: #fff;
+        border: 1px solid #000;
+        border-radius: 0.25rem;
+    }
+
+    .rl-metric-formula-box .katex {
+        color: #000;
+        font-size: 1.25rem;
+    }
+</style>
 @php
     use App\Models\ExperimentMetric;
 
@@ -155,17 +171,27 @@
         <div class="border rounded p-3 mt-4 bg-light">
             <p class="mb-2"><strong>Description:</strong> Session access is invalidated immediately when the victim logs out. Token access remains valid until the JWT naturally expires (5 minutes in this demonstration), even after logout.</p>
             <p class="mb-1"><strong>Metric for Calculation:</strong> Revocation Latency (RL)</p>
+            <div class="rl-metric-formula-box">
+                <span id="rl-metric-formula"></span>
+            </div>
             <p class="mb-1"><strong>Definition:</strong> Revocation latency is the time between a decision to remove access and the point at which that access is actually gone.</p>
-            <p class="mb-1"><strong>Session RL Calculation:</strong>  Access Invalidated Time − Revocation Time</p>
+            <p class="mb-1"><strong>Session RL Calculation:</strong> Access Invalidated Time − Revocation Time</p>
+            
             <p class="mb-1"><strong>Token RL Calculation:</strong> Access Invalidated Time − Revocation Time</p>
-            <p class="mb-1" id="session-rl-result">Session RL: —</p>
-            <p class="mb-0" id="token-rl-result">Token RL: —</p>
+            <p class="mb-1" id="session-rl-result">Session RL:</p>
+            <p class="mb-0" id="token-rl-result">Token RL:</p>
         </div>
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
+    katex.render('RL = T_{\\text{Access Invalid}} - T_{\\text{Revocation}}', document.getElementById('rl-metric-formula'), {
+        displayMode: true,
+        throwOnError: false,
+    });
+
     document.addEventListener('DOMContentLoaded', function () {
         const sessionButton = document.getElementById('unauthorized-access-btn');
         const tokenButton = document.getElementById('unauthorized-token-btn');
@@ -206,6 +232,8 @@
         const chartMarkers = [];
         let sessionLogoutTimeMs = null;
         let tokenLogoutTimeMs = null;
+        let sessionAccessInvalidMs = null;
+        let tokenAccessInvalidMs = null;
         let lastTokenValidation = null;
 
         function syncVictimLogoutTimes() {
@@ -228,22 +256,30 @@
             if (type === 'session') {
                 sessionLogoutTimeMs = ms;
                 window.localStorage.setItem(sessionLogoutEventKey, String(ms));
+                refreshLogoutMarkerPosition('session');
+                renderSessionRL();
             } else {
                 tokenLogoutTimeMs = ms;
                 window.localStorage.setItem(tokenLogoutEventKey, String(ms));
+                refreshLogoutMarkerPosition('token');
+                renderTokenRL();
+            }
+
+            if (revocationChart) {
+                renderChart();
             }
         }
 
         function resolveChartStartTime(type, data, phishTs) {
+            if (phishTs && phishTs > 0) {
+                return phishTs;
+            }
+
             if (type === 'token') {
                 const issuedAtMs = data.token_issued_at ? Date.parse(data.token_issued_at) : null;
                 if (issuedAtMs && !Number.isNaN(issuedAtMs)) {
                     return issuedAtMs;
                 }
-            }
-
-            if (phishTs && phishTs > 0) {
-                return phishTs;
             }
 
             return Date.now();
@@ -253,13 +289,7 @@
 
         window.addEventListener('victim-logout', function (event) {
             const type = event.detail?.type === 'token' ? 'token' : 'session';
-            const at = Date.now();
-
-            if (type === 'token') {
-                tokenLogoutTimeMs = at;
-            } else {
-                sessionLogoutTimeMs = at;
-            }
+            syncVictimLogoutTimes();
 
             if (type === 'session') {
                 handleSessionVictimLogout();
@@ -304,8 +334,13 @@
             chartAlert.textContent = '';
         }
 
-        function toMinutes(startMs, endMs) {
-            return Math.min(Math.max((endMs - startMs) / 60000, 0), xAxisMax);
+        function toChartMinutes(startMs, endMs) {
+            if (!startMs || !endMs) {
+                return 0;
+            }
+
+            const elapsedSeconds = Math.max(0, Math.round((endMs - startMs) / 1000));
+            return Math.min(elapsedSeconds / 60, xAxisMax);
         }
 
         function getElapsedMinutes(state) {
@@ -313,7 +348,24 @@
                 return 0;
             }
 
-            return toMinutes(state.chartStartTime, Date.now());
+            return toChartMinutes(state.chartStartTime, Date.now());
+        }
+
+        function refreshLogoutMarkerPosition(type) {
+            const state = type === 'session' ? sessionState : tokenState;
+            const logoutMs = type === 'session' ? sessionLogoutTimeMs : tokenLogoutTimeMs;
+
+            if (!state.chartStartTime || !logoutMs || !state.logoutMarkerAdded) {
+                return;
+            }
+
+            const x = toChartMinutes(state.chartStartTime, logoutMs);
+
+            chartMarkers.forEach(function (marker) {
+                if (marker.type === type && marker.label.includes('Logout')) {
+                    marker.x = Number(x.toFixed(3));
+                }
+            });
         }
 
         function sortPoints(state) {
@@ -463,6 +515,8 @@
                 markers: chartMarkers,
                 sessionLogoutTimeMs: sessionLogoutTimeMs,
                 tokenLogoutTimeMs: tokenLogoutTimeMs,
+                sessionAccessInvalidMs: sessionAccessInvalidMs,
+                tokenAccessInvalidMs: tokenAccessInvalidMs,
                 sessionRl: sessionRlResult.textContent,
                 tokenRl: tokenRlResult.textContent,
             };
@@ -505,6 +559,14 @@
 
                 if (snapshot.tokenLogoutTimeMs) {
                     tokenLogoutTimeMs = snapshot.tokenLogoutTimeMs;
+                }
+
+                if (snapshot.sessionAccessInvalidMs) {
+                    sessionAccessInvalidMs = snapshot.sessionAccessInvalidMs;
+                }
+
+                if (snapshot.tokenAccessInvalidMs) {
+                    tokenAccessInvalidMs = snapshot.tokenAccessInvalidMs;
                 }
 
                 if (snapshot.sessionRl) {
@@ -605,8 +667,10 @@
             resetStoredLogoutMarkers();
             Object.assign(sessionState, createTracker());
             Object.assign(tokenState, createTracker());
-            sessionRlResult.textContent = 'Session RL: —';
-            tokenRlResult.textContent = 'Token RL: —';
+            sessionAccessInvalidMs = null;
+            tokenAccessInvalidMs = null;
+            renderSessionRL();
+            renderTokenRL();
             window.localStorage.removeItem(chartStateKey);
             hideAlert();
 
@@ -626,47 +690,93 @@
             chartSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
-        function formatLatency(seconds) {
-            if (seconds === null || seconds === undefined) {
-                return '—';
-            }
-
-            if (seconds === 0) {
+        function formatDuration(totalSeconds) {
+            if (totalSeconds === 0) {
                 return '0 seconds (Immediate)';
             }
 
-            if (seconds < 60) {
-                return `${seconds} second${seconds === 1 ? '' : 's'}`;
+            if (totalSeconds < 60) {
+                return `${totalSeconds} second${totalSeconds === 1 ? '' : 's'}`;
             }
 
-            const minutes = (seconds / 60).toFixed(2);
-            return `${minutes} minutes (${seconds} seconds)`;
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+
+            if (seconds === 0) {
+                return `${minutes} min`;
+            }
+
+            return `${minutes} min ${seconds} second${seconds === 1 ? '' : 's'}`;
         }
 
-        function updateSessionRL(data, denialTimeMs) {
-            if (data.revocation_latency_seconds !== null && data.revocation_latency_seconds !== undefined) {
-                sessionRlResult.textContent = `Session RL: ${formatLatency(data.revocation_latency_seconds)}`;
+        function formatElapsedFromStart(startMs, eventMs) {
+            if (!startMs || !eventMs) {
+                return '—';
+            }
+
+            const totalSeconds = Math.max(0, Math.round((eventMs - startMs) / 1000));
+            return formatDuration(totalSeconds);
+        }
+
+        function renderSessionRL() {
+            const startMs = sessionState.chartStartTime;
+            const revocationMs = sessionLogoutTimeMs;
+
+            if (!startMs || !revocationMs) {
+                sessionRlResult.textContent = 'Session RL:';
                 return;
             }
 
-            if (data.logout_time) {
-                const latencySeconds = Math.max(0, Math.round((denialTimeMs - Date.parse(data.logout_time)) / 1000));
-                sessionRlResult.textContent = `Session RL: ${formatLatency(latencySeconds)}`;
+            const accessInvalidLabel = sessionAccessInvalidMs
+                ? formatElapsedFromStart(startMs, sessionAccessInvalidMs)
+                : '—';
+            const revocationLabel = formatElapsedFromStart(startMs, revocationMs);
+            let resultLabel = '—';
+
+            if (sessionAccessInvalidMs) {
+                const latencySeconds = Math.max(0, Math.round((sessionAccessInvalidMs - revocationMs) / 1000));
+                resultLabel = formatDuration(latencySeconds);
             }
+
+            sessionRlResult.textContent = `Session RL: ${accessInvalidLabel} − ${revocationLabel} = ${resultLabel}`;
         }
 
-        function updateTokenRL(data) {
-            if (data.revocation_latency_seconds !== null && data.revocation_latency_seconds !== undefined) {
-                tokenRlResult.textContent = `Token RL: ${formatLatency(data.revocation_latency_seconds)}`;
+        function renderTokenRL() {
+            const startMs = tokenState.chartStartTime;
+            const revocationMs = tokenLogoutTimeMs;
+
+            if (!startMs || !revocationMs) {
+                tokenRlResult.textContent = 'Token RL:';
                 return;
             }
 
-            if (data.logout_time && data.token_expiration_time) {
-                const latencySeconds = Math.max(0, Math.round(
-                    (Date.parse(data.token_expiration_time) - Date.parse(data.logout_time)) / 1000
-                ));
-                tokenRlResult.textContent = `Token RL: ${formatLatency(latencySeconds)}`;
+            const accessInvalidLabel = tokenAccessInvalidMs
+                ? formatElapsedFromStart(startMs, tokenAccessInvalidMs)
+                : '—';
+            const revocationLabel = formatElapsedFromStart(startMs, revocationMs);
+            let resultLabel = '—';
+
+            if (tokenAccessInvalidMs) {
+                const latencySeconds = Math.max(0, Math.round((tokenAccessInvalidMs - revocationMs) / 1000));
+                resultLabel = formatDuration(latencySeconds);
             }
+
+            tokenRlResult.textContent = `Token RL: ${accessInvalidLabel} − ${revocationLabel} = ${resultLabel}`;
+        }
+
+        function revealTokenAccessInvalidTime(data) {
+            if (tokenAccessInvalidMs || !tokenLogoutTimeMs) {
+                return;
+            }
+
+            const expirationMs = data.token_expiration_time ? Date.parse(data.token_expiration_time) : null;
+
+            if (!expirationMs || Number.isNaN(expirationMs)) {
+                return;
+            }
+
+            tokenAccessInvalidMs = expirationMs;
+            renderTokenRL();
         }
 
         function isTokenAccessValid(data) {
@@ -697,11 +807,25 @@
                 }),
                 borderColor: color,
                 backgroundColor: backgroundColor,
-                stepped: false,
+                stepped: 'after',
                 fill: false,
                 tension: 0,
-                pointRadius: state.samplePoints.length ? 4 : 0,
-                pointHoverRadius: 5,
+                pointRadius: function (context) {
+                    const point = context.dataset.data[context.dataIndex];
+                    if (!point || point.x === 0) {
+                        return 0;
+                    }
+
+                    return 4;
+                },
+                pointHoverRadius: function (context) {
+                    const point = context.dataset.data[context.dataIndex];
+                    if (!point || point.x === 0) {
+                        return 0;
+                    }
+
+                    return 5;
+                },
                 pointBackgroundColor: color,
             };
         }
@@ -757,6 +881,15 @@
                             legend: { position: 'top' },
                             tooltip: {
                                 callbacks: {
+                                    title: function (tooltipItems) {
+                                        const minutes = tooltipItems[0]?.parsed?.x;
+                                        if (minutes === undefined || minutes === null) {
+                                            return '';
+                                        }
+
+                                        const totalSeconds = Math.round(minutes * 60);
+                                        return `${formatDuration(totalSeconds)} from attack start`;
+                                    },
                                     label: function (context) {
                                         const value = context.parsed.y;
                                         return value === 1
@@ -794,10 +927,12 @@
             if (type === 'session') {
                 window.localStorage.removeItem(sessionLogoutEventKey);
                 sessionLogoutTimeMs = null;
+                sessionAccessInvalidMs = null;
             }
             if (type === 'token') {
                 window.localStorage.removeItem(tokenLogoutEventKey);
                 tokenLogoutTimeMs = null;
+                tokenAccessInvalidMs = null;
             }
             state.chartStartTime = startTimeMs || Date.now();
             state.samplePoints = [{ x: 0, y: 1 }];
@@ -805,8 +940,14 @@
             state.logoutMarkerAdded = false;
             state.expiryMarkerAdded = false;
             state.expiryRecorded = false;
+            state.unauthorizedAttempts = 0;
             ensureChartVisible();
             renderChart();
+            if (type === 'session') {
+                renderSessionRL();
+            } else {
+                renderTokenRL();
+            }
             saveChartState();
             scrollToChart();
         }
@@ -818,8 +959,8 @@
 
             if (options?.onLogoutWhileValid && logoutDetected && !state.logoutMarkerAdded) {
                 const logoutMinute = logoutTimestampMs
-                    ? toMinutes(state.chartStartTime, logoutTimestampMs)
-                    : (data.logout_time ? toMinutes(state.chartStartTime, Date.parse(data.logout_time)) : elapsedMinutes);
+                    ? toChartMinutes(state.chartStartTime, logoutTimestampMs)
+                    : (data.logout_time ? toChartMinutes(state.chartStartTime, Date.parse(data.logout_time)) : elapsedMinutes);
 
                 addMarker(
                     logoutMinute,
@@ -831,7 +972,7 @@
                 state.logoutMarkerAdded = true;
 
                 if (options.updateRl) {
-                    options.updateRl(data);
+                    options.updateRl();
                 }
             }
 
@@ -851,43 +992,41 @@
 
             sessionState.denialRecorded = true;
             const denialTimeMs = Date.now();
-            const denialMinute = toMinutes(sessionState.chartStartTime, denialTimeMs);
+            const denialMinute = toChartMinutes(sessionState.chartStartTime, denialTimeMs);
             const logoutTimeMs = data.logout_time ? Date.parse(data.logout_time) : sessionLogoutTimeMs;
 
+            if (logoutTimeMs) {
+                sessionLogoutTimeMs = logoutTimeMs;
+            }
+
             if (logoutTimeMs && !sessionState.logoutMarkerAdded) {
-                const logoutMinute = toMinutes(sessionState.chartStartTime, logoutTimeMs);
+                const logoutMinute = toChartMinutes(sessionState.chartStartTime, logoutTimeMs);
                 addMarker(logoutMinute, 'Session User Logout', '#7c3aed', 'session', 'callout');
                 sessionState.logoutMarkerAdded = true;
             }
 
             appendPoint(sessionState, denialMinute, 0);
 
-            updateSessionRL(
-                { logout_time: logoutTimeMs ? new Date(logoutTimeMs).toISOString() : data.logout_time },
-                denialTimeMs
-            );
+            sessionAccessInvalidMs = denialTimeMs;
+            renderSessionRL();
             renderChart();
             saveChartState();
             scrollToChart();
         }
 
         function handleSessionVictimLogout() {
-            if (!sessionState.chartStartTime || sessionState.denialRecorded || !sessionLogoutTimeMs) {
+            if (!sessionState.chartStartTime || !sessionLogoutTimeMs) {
                 return;
             }
 
-            sessionState.denialRecorded = true;
-            const logoutMinute = toMinutes(sessionState.chartStartTime, sessionLogoutTimeMs);
+            const logoutMinute = toChartMinutes(sessionState.chartStartTime, sessionLogoutTimeMs);
 
             if (!sessionState.logoutMarkerAdded) {
                 addMarker(logoutMinute, 'Session User Logout', '#7c3aed', 'session', 'callout');
                 sessionState.logoutMarkerAdded = true;
             }
 
-            updateSessionRL(
-                { logout_time: new Date(sessionLogoutTimeMs).toISOString() },
-                Date.now()
-            );
+            renderSessionRL();
             ensureChartVisible();
             renderChart();
             saveChartState();
@@ -898,7 +1037,7 @@
                 return;
             }
 
-            const logoutMinute = toMinutes(tokenState.chartStartTime, tokenLogoutTimeMs);
+            const logoutMinute = toChartMinutes(tokenState.chartStartTime, tokenLogoutTimeMs);
 
             addMarker(
                 logoutMinute,
@@ -908,10 +1047,7 @@
                 'callout'
             );
             tokenState.logoutMarkerAdded = true;
-            updateTokenRL({
-                logout_time: new Date(tokenLogoutTimeMs).toISOString(),
-                token_expiration_time: lastTokenValidation?.token_expiration_time || null,
-            });
+            renderTokenRL();
             ensureChartVisible();
             renderChart();
             saveChartState();
@@ -929,10 +1065,10 @@
             tokenState.denialRecorded = true;
 
             const denialTimeMs = Date.now();
-            const denialMinute = toMinutes(tokenState.chartStartTime, denialTimeMs);
+            const denialMinute = toChartMinutes(tokenState.chartStartTime, denialTimeMs);
             const expirationMs = data.token_expiration_time ? Date.parse(data.token_expiration_time) : null;
             const expirationMinute = expirationMs
-                ? toMinutes(tokenState.chartStartTime, expirationMs)
+                ? toChartMinutes(tokenState.chartStartTime, expirationMs)
                 : Math.min(5, denialMinute);
 
             if (!tokenState.expiryMarkerAdded) {
@@ -946,7 +1082,11 @@
                 appendPoint(tokenState, denialMinute, 0);
             }
 
-            updateTokenRL(data);
+            if (expirationMs && !Number.isNaN(expirationMs)) {
+                tokenAccessInvalidMs = expirationMs;
+            }
+
+            renderTokenRL();
             renderChart();
             saveChartState();
             scrollToChart();
@@ -1023,6 +1163,7 @@
                         startTest(sessionState, 'session', resolveChartStartTime('session', data, sessionPhishTs));
                     }
 
+                    sessionState.unauthorizedAttempts = (sessionState.unauthorizedAttempts || 0) + 1;
                     recordSuccessfulAccess(sessionState, data, 'session');
 
                     if (sessionLogoutTimeMs && !sessionState.logoutMarkerAdded) {
@@ -1037,6 +1178,7 @@
                     return;
                 }
 
+                sessionState.unauthorizedAttempts = (sessionState.unauthorizedAttempts || 0) + 1;
                 recordSessionDeniedAccess(data);
                 showAlert('Session invalidated: captured session ID is no longer valid.');
             } catch (error) {
@@ -1080,10 +1222,13 @@
                 };
 
                 if (isTokenAccessValid(tokenData)) {
+                    const logoutAlreadyRecorded = tokenState.logoutMarkerAdded;
+
                     if (!tokenState.chartStartTime) {
                         startTest(tokenState, 'token', resolveChartStartTime('token', data, tokenPhishTs));
-                        tokenRlResult.textContent = 'Token RL: —';
                     }
+
+                    tokenState.unauthorizedAttempts = (tokenState.unauthorizedAttempts || 0) + 1;
 
                     if (hasVictimLogout && !tokenState.logoutMarkerAdded) {
                         handleTokenVictimLogout();
@@ -1094,8 +1239,12 @@
                         logoutLabel: 'Token User Logout',
                         markerStyle: 'callout',
                         logoutTimeMs: tokenLogoutTimeMs,
-                        updateRl: updateTokenRL,
+                        updateRl: renderTokenRL,
                     });
+
+                    if (logoutAlreadyRecorded && tokenState.unauthorizedAttempts >= 2) {
+                        revealTokenAccessInvalidTime(tokenData);
+                    }
 
                     return;
                 }
@@ -1104,6 +1253,8 @@
                     showAlert('Captured JWT token is not valid. Log in via token authentication and capture a fresh JWT before testing.');
                     return;
                 }
+
+                tokenState.unauthorizedAttempts = (tokenState.unauthorizedAttempts || 0) + 1;
 
                 if (data.expired) {
                     recordTokenExpiredAccess(data);
