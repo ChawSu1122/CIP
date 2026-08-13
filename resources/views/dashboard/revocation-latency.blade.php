@@ -192,6 +192,47 @@
     </div>
 </div>
 
+<div id="attack-success-rate-section" class="card shadow-sm border-0 mt-4 d-none">
+    <div class="card-header bg-white border-0">
+        <h2 class="h5 mb-1">Attack Success Rate Comparison</h2>
+        <p class="mb-0 small text-secondary">Each Unauthorized Access click in the Session Hijacking and Token Hijacking attacks above counts as one attempt. The outcome (Success / 200 OK or Access Denied / 401) is taken from the graph and reflected below.</p>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered align-middle mb-4">
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col">Attack Type</th>
+                        <th scope="col" class="text-center">Attempts</th>
+                        <th scope="col" class="text-center">Success</th>
+                        <th scope="col" class="text-center">Failed</th>
+                        <th scope="col" class="text-center">Success Rate</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="text-primary fw-semibold">Session Hijacking</span></td>
+                        <td id="session-attempts" class="text-center">0</td>
+                        <td id="session-successes" class="text-center text-success fw-semibold">0</td>
+                        <td id="session-failures" class="text-center text-danger fw-semibold">0</td>
+                        <td id="session-success-rate" class="text-center fw-bold">—</td>
+                    </tr>
+                    <tr>
+                        <td><span class="text-danger fw-semibold">Token Hijacking</span></td>
+                        <td id="token-attempts" class="text-center">0</td>
+                        <td id="token-successes" class="text-center text-success fw-semibold">0</td>
+                        <td id="token-failures" class="text-center text-danger fw-semibold">0</td>
+                        <td id="token-success-rate" class="text-center fw-bold">—</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div style="position: relative; height: 260px;">
+            <canvas id="attackSuccessRateChart"></canvas>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
@@ -247,6 +288,22 @@
         let sessionAccessInvalidMs = null;
         let tokenAccessInvalidMs = null;
         let lastTokenValidation = null;
+
+        const attackSuccessRateState = {
+            session: { attempts: 0, successes: 0 },
+            token: { attempts: 0, successes: 0 },
+        };
+        let attackSuccessRateChart = null;
+        const attackSuccessRateSection = document.getElementById('attack-success-rate-section');
+        const attackSuccessRateCanvas = document.getElementById('attackSuccessRateChart');
+        const sessionAttemptsEl = document.getElementById('session-attempts');
+        const sessionSuccessesEl = document.getElementById('session-successes');
+        const sessionFailuresEl = document.getElementById('session-failures');
+        const sessionSuccessRateEl = document.getElementById('session-success-rate');
+        const tokenAttemptsEl = document.getElementById('token-attempts');
+        const tokenSuccessesEl = document.getElementById('token-successes');
+        const tokenFailuresEl = document.getElementById('token-failures');
+        const tokenSuccessRateEl = document.getElementById('token-success-rate');
 
         function syncVictimLogoutTimes() {
             const sessionTs = Number(window.localStorage.getItem(sessionLogoutEventKey) || '0');
@@ -532,6 +589,7 @@
                 tokenAccessInvalidMs: tokenAccessInvalidMs,
                 sessionRl: sessionRlResult.textContent,
                 tokenRl: tokenRlResult.textContent,
+                attackSuccessRates: attackSuccessRateState,
             };
 
             window.localStorage.setItem(chartStateKey, JSON.stringify(snapshot));
@@ -586,6 +644,20 @@
 
                 if (snapshot.tokenAccessInvalidMs) {
                     tokenAccessInvalidMs = snapshot.tokenAccessInvalidMs;
+                }
+
+                if (snapshot.attackSuccessRates) {
+                    attackSuccessRateState.session = {
+                        attempts: 0,
+                        successes: 0,
+                        ...(snapshot.attackSuccessRates.session || {}),
+                    };
+                    attackSuccessRateState.token = {
+                        attempts: 0,
+                        successes: 0,
+                        ...(snapshot.attackSuccessRates.token || {}),
+                    };
+                    updateAttackSuccessRateUI();
                 }
 
                 renderSessionRL();
@@ -683,6 +755,9 @@
             Object.assign(tokenState, createTracker());
             sessionAccessInvalidMs = null;
             tokenAccessInvalidMs = null;
+            attackSuccessRateState.session = { attempts: 0, successes: 0 };
+            attackSuccessRateState.token = { attempts: 0, successes: 0 };
+            updateAttackSuccessRateUI();
             renderSessionRL();
             renderTokenRL();
             window.localStorage.removeItem(chartStateKey);
@@ -778,6 +853,125 @@
 
             comparisonResultText.textContent = 'The comparison is tied because both Revocation Latency values are equal.';
             comparisonResultText.className = 'mb-0 fw-bold text-warning fs-4';
+        }
+
+        function getSuccessRate(type) {
+            const entry = attackSuccessRateState[type];
+
+            if (!entry.attempts) {
+                return null;
+            }
+
+            return Math.round((entry.successes / entry.attempts) * 100);
+        }
+
+        function recordAttackAttempt(type, success) {
+            const entry = attackSuccessRateState[type];
+            entry.attempts += 1;
+
+            if (success) {
+                entry.successes += 1;
+            }
+
+            updateAttackSuccessRateUI();
+            saveChartState();
+        }
+
+        function updateAttackSuccessRateUI() {
+            const session = attackSuccessRateState.session;
+            const token = attackSuccessRateState.token;
+
+            sessionAttemptsEl.textContent = session.attempts;
+            sessionSuccessesEl.textContent = session.successes;
+            sessionFailuresEl.textContent = session.attempts - session.successes;
+            sessionSuccessRateEl.textContent = session.attempts ? `${getSuccessRate('session')}%` : '—';
+
+            tokenAttemptsEl.textContent = token.attempts;
+            tokenSuccessesEl.textContent = token.successes;
+            tokenFailuresEl.textContent = token.attempts - token.successes;
+            tokenSuccessRateEl.textContent = token.attempts ? `${getSuccessRate('token')}%` : '—';
+
+            if (session.attempts > 0 || token.attempts > 0) {
+                attackSuccessRateSection.classList.remove('d-none');
+                renderAttackSuccessRateChart();
+            } else {
+                attackSuccessRateSection.classList.add('d-none');
+
+                if (attackSuccessRateChart) {
+                    attackSuccessRateChart.data.datasets[0].data = [0, 0];
+                    attackSuccessRateChart.update();
+                }
+            }
+        }
+
+        function renderAttackSuccessRateChart() {
+            if (!attackSuccessRateCanvas) {
+                return;
+            }
+
+            const sessionRate = getSuccessRate('session');
+            const tokenRate = getSuccessRate('token');
+
+            if (!attackSuccessRateChart) {
+                attackSuccessRateChart = new Chart(attackSuccessRateCanvas.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: ['Session Hijacking', 'Token Hijacking'],
+                        datasets: [{
+                            label: 'Attack Success Rate (%)',
+                            data: [sessionRate ?? 0, tokenRate ?? 0],
+                            backgroundColor: ['#2563eb', '#dc3545'],
+                        }],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                min: 0,
+                                max: 100,
+                                ticks: {
+                                    callback: function (value) {
+                                        return `${value}%`;
+                                    },
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Success Rate (%)',
+                                },
+                                grid: { color: '#e5e7eb' },
+                            },
+                            x: {
+                                grid: { display: false },
+                            },
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function (context) {
+                                        const entry = context.dataIndex === 0
+                                            ? attackSuccessRateState.session
+                                            : attackSuccessRateState.token;
+
+                                        if (!entry.attempts) {
+                                            return 'No attempts yet';
+                                        }
+
+                                        return `Success: ${entry.successes}/${entry.attempts} (${context.parsed.y}%)`;
+                                    },
+                                },
+                            },
+                        },
+                        animation: { duration: 250 },
+                    },
+                });
+
+                return;
+            }
+
+            attackSuccessRateChart.data.datasets[0].data = [sessionRate ?? 0, tokenRate ?? 0];
+            attackSuccessRateChart.update();
         }
 
         function renderSessionRL() {
@@ -1217,6 +1411,7 @@
                     }
 
                     sessionState.unauthorizedAttempts = (sessionState.unauthorizedAttempts || 0) + 1;
+                    recordAttackAttempt('session', true);
                     recordSuccessfulAccess(sessionState, data, 'session');
 
                     if (sessionLogoutTimeMs && !sessionState.logoutMarkerAdded) {
@@ -1232,6 +1427,7 @@
                 }
 
                 sessionState.unauthorizedAttempts = (sessionState.unauthorizedAttempts || 0) + 1;
+                recordAttackAttempt('session', false);
                 recordSessionDeniedAccess(data);
                 showAlert('Session invalidated: captured session ID is no longer valid.');
             } catch (error) {
@@ -1280,6 +1476,7 @@
                     }
 
                     tokenState.unauthorizedAttempts = (tokenState.unauthorizedAttempts || 0) + 1;
+                    recordAttackAttempt('token', true);
 
                     if (hasVictimLogout && !tokenState.logoutMarkerAdded) {
                         handleTokenVictimLogout();
@@ -1301,6 +1498,7 @@
                 }
 
                 tokenState.unauthorizedAttempts = (tokenState.unauthorizedAttempts || 0) + 1;
+                recordAttackAttempt('token', false);
 
                 if (data.expired) {
                     recordTokenExpiredAccess(data);
