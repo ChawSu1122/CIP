@@ -177,9 +177,10 @@
             <p class="mb-1"><strong>Definition:</strong> Revocation latency is the time between a decision to remove access and the point at which that access is actually gone.</p>
             <p class="mb-1"><strong>Session RL Calculation:</strong> Access Invalidated Time − Revocation Time</p>
             
+            
+            <p class="mb-1" id="session-rl-result">Session RL Calculation:</p>
             <p class="mb-1"><strong>Token RL Calculation:</strong> Access Invalidated Time − Revocation Time</p>
-            <p class="mb-1" id="session-rl-result">Session RL:</p>
-            <p class="mb-0" id="token-rl-result">Token RL:</p>
+            <p class="mb-0" id="token-rl-result">Token RL Calculation:</p>
         </div>
     </div>
 </div>
@@ -221,6 +222,8 @@
         const securityAlertUrl = "{{ route('dashboard.revocation-latency.security-alert') }}";
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         const xAxisMax = 6;
+        const tokenTtlSeconds = 300;
+        const tokenExpiryChartMinute = tokenTtlSeconds / 60;
         const sessionLogoutEventKey = 'victim-logout-event-session';
         const tokenLogoutEventKey = 'victim-logout-event-token';
         const resetMarkerKey = 'revocation-latency-attack-reset';
@@ -391,10 +394,11 @@
             state.samplePoints = deduped;
         }
 
-        function appendPoint(state, x, y) {
+        function appendPoint(state, x, y, options) {
             state.samplePoints.push({
                 x: Number(x.toFixed(3)),
                 y: Number(y),
+                hidden: Boolean(options?.hidden),
             });
             sortPoints(state);
         }
@@ -549,6 +553,12 @@
                 if (Array.isArray(snapshot.markers)) {
                     chartMarkers.length = 0;
                     snapshot.markers.forEach(function (marker) {
+                        if (marker.type === 'token' && marker.color === '#dc2626') {
+                            marker.x = tokenExpiryChartMinute;
+                            marker.label = 'Token Expired';
+                            marker.style = 'callout';
+                        }
+
                         chartMarkers.push({ ...marker });
                     });
                 }
@@ -569,13 +579,8 @@
                     tokenAccessInvalidMs = snapshot.tokenAccessInvalidMs;
                 }
 
-                if (snapshot.sessionRl) {
-                    sessionRlResult.textContent = snapshot.sessionRl;
-                }
-
-                if (snapshot.tokenRl) {
-                    tokenRlResult.textContent = snapshot.tokenRl;
-                }
+                renderSessionRL();
+                renderTokenRL();
 
                 if (snapshot.visible || sessionState.chartStartTime || tokenState.chartStartTime) {
                     ensureChartVisible();
@@ -723,7 +728,7 @@
             const revocationMs = sessionLogoutTimeMs;
 
             if (!startMs || !revocationMs) {
-                sessionRlResult.textContent = 'Session RL:';
+                sessionRlResult.textContent = 'Session RL Calculation:';
                 return;
             }
 
@@ -738,45 +743,25 @@
                 resultLabel = formatDuration(latencySeconds);
             }
 
-            sessionRlResult.textContent = `Session RL: ${accessInvalidLabel} − ${revocationLabel} = ${resultLabel}`;
+            sessionRlResult.textContent = `Session RL Calculation: ${accessInvalidLabel} − ${revocationLabel} = ${resultLabel}`;
         }
 
         function renderTokenRL() {
             const startMs = tokenState.chartStartTime;
             const revocationMs = tokenLogoutTimeMs;
 
-            if (!startMs || !revocationMs) {
-                tokenRlResult.textContent = 'Token RL:';
+            if (!startMs || !revocationMs || !tokenState.expiryRecorded) {
+                tokenRlResult.textContent = 'Token RL Calculation:';
                 return;
             }
 
-            const accessInvalidLabel = tokenAccessInvalidMs
-                ? formatElapsedFromStart(startMs, tokenAccessInvalidMs)
-                : '—';
+            const accessInvalidLabel = formatDuration(tokenTtlSeconds);
             const revocationLabel = formatElapsedFromStart(startMs, revocationMs);
-            let resultLabel = '—';
+            const revocationSeconds = Math.max(0, Math.round((revocationMs - startMs) / 1000));
+            const latencySeconds = Math.max(0, tokenTtlSeconds - revocationSeconds);
+            const resultLabel = formatDuration(latencySeconds);
 
-            if (tokenAccessInvalidMs) {
-                const latencySeconds = Math.max(0, Math.round((tokenAccessInvalidMs - revocationMs) / 1000));
-                resultLabel = formatDuration(latencySeconds);
-            }
-
-            tokenRlResult.textContent = `Token RL: ${accessInvalidLabel} − ${revocationLabel} = ${resultLabel}`;
-        }
-
-        function revealTokenAccessInvalidTime(data) {
-            if (tokenAccessInvalidMs || !tokenLogoutTimeMs) {
-                return;
-            }
-
-            const expirationMs = data.token_expiration_time ? Date.parse(data.token_expiration_time) : null;
-
-            if (!expirationMs || Number.isNaN(expirationMs)) {
-                return;
-            }
-
-            tokenAccessInvalidMs = expirationMs;
-            renderTokenRL();
+            tokenRlResult.textContent = `Token RL Calculation: ${accessInvalidLabel} − ${revocationLabel} = ${resultLabel}`;
         }
 
         function isTokenAccessValid(data) {
@@ -803,7 +788,7 @@
             return {
                 label: label,
                 data: state.samplePoints.map(function (point) {
-                    return { x: point.x, y: point.y };
+                    return { x: point.x, y: point.y, hidden: point.hidden };
                 }),
                 borderColor: color,
                 backgroundColor: backgroundColor,
@@ -811,7 +796,7 @@
                 tension: 0,
                 pointRadius: function (context) {
                     const point = context.dataset.data[context.dataIndex];
-                    if (!point || point.x === 0) {
+                    if (!point || point.x === 0 || point.hidden) {
                         return 0;
                     }
 
@@ -819,11 +804,19 @@
                 },
                 pointHoverRadius: function (context) {
                     const point = context.dataset.data[context.dataIndex];
-                    if (!point || point.x === 0) {
+                    if (!point || point.x === 0 || point.hidden) {
                         return 0;
                     }
 
                     return 5;
+                },
+                pointHitRadius: function (context) {
+                    const point = context.dataset.data[context.dataIndex];
+                    if (!point || point.x === 0 || point.hidden) {
+                        return 0;
+                    }
+
+                    return 4;
                 },
                 pointBackgroundColor: color,
             };
@@ -1065,25 +1058,21 @@
 
             const denialTimeMs = Date.now();
             const denialMinute = toChartMinutes(tokenState.chartStartTime, denialTimeMs);
-            const expirationMs = data.token_expiration_time ? Date.parse(data.token_expiration_time) : null;
-            const expirationMinute = expirationMs
-                ? toChartMinutes(tokenState.chartStartTime, expirationMs)
-                : Math.min(5, denialMinute);
+            const expirationMinute = tokenExpiryChartMinute;
 
             if (!tokenState.expiryMarkerAdded) {
-                addMarker(expirationMinute, '', '#dc2626', 'token', 'line');
+                addMarker(expirationMinute, 'Token Expired', '#dc2626', 'token', 'callout');
                 tokenState.expiryMarkerAdded = true;
             }
 
-            appendPoint(tokenState, expirationMinute, 0);
+            appendPoint(tokenState, expirationMinute, 1, { hidden: true });
+            appendPoint(tokenState, expirationMinute, 0, { hidden: true });
 
             if (denialMinute > expirationMinute) {
                 appendPoint(tokenState, denialMinute, 0);
             }
 
-            if (expirationMs && !Number.isNaN(expirationMs)) {
-                tokenAccessInvalidMs = expirationMs;
-            }
+            tokenAccessInvalidMs = tokenState.chartStartTime + (tokenTtlSeconds * 1000);
 
             renderTokenRL();
             renderChart();
@@ -1221,8 +1210,6 @@
                 };
 
                 if (isTokenAccessValid(tokenData)) {
-                    const logoutAlreadyRecorded = tokenState.logoutMarkerAdded;
-
                     if (!tokenState.chartStartTime) {
                         startTest(tokenState, 'token', resolveChartStartTime('token', data, tokenPhishTs));
                     }
@@ -1238,12 +1225,7 @@
                         logoutLabel: 'Token User Logout',
                         markerStyle: 'callout',
                         logoutTimeMs: tokenLogoutTimeMs,
-                        updateRl: renderTokenRL,
                     });
-
-                    if (logoutAlreadyRecorded && tokenState.unauthorizedAttempts >= 2) {
-                        revealTokenAccessInvalidTime(tokenData);
-                    }
 
                     return;
                 }
