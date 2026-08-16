@@ -3,22 +3,7 @@
 @section('title', 'Revocation Latency')
 
 @section('content')
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
-<style>
-    .rl-metric-formula-box {
-        width: fit-content;
-        margin: 0.5rem auto;
-        padding: 0.75rem 1.5rem;
-        background: #fff;
-        border: 1px solid #000;
-        border-radius: 0.25rem;
-    }
 
-    .rl-metric-formula-box .katex {
-        color: #000;
-        font-size: 1.25rem;
-    }
-</style>
 @php
     use App\Models\ExperimentMetric;
 
@@ -48,7 +33,7 @@
 <div class="d-flex justify-content-between align-items-start align-items-lg-center flex-wrap gap-3 mb-3">
     <div>
         <h1 class="page-title">Revocation Latency</h1>
-        <p class="page-copy">This page compares attack flows side by side, highlighting how token and session hijacking behave when revocation latency matters.</p>
+        {{-- <p class="page-copy">This page compares attack flows side by side, highlighting how token and session hijacking behave when revocation latency matters.</p> --}}
     </div>
     <button id="reset-attack-boxes-btn" type="button" class="btn btn-outline-secondary btn-sm">Reset</button>
 </div>
@@ -169,15 +154,9 @@
             <canvas id="revocationChart"></canvas>
         </div>
         <div class="border rounded p-3 mt-4 bg-light">
-            <p class="mb-2"><strong>Description:</strong> Session access is invalidated immediately when the victim logs out. Token access remains valid until the JWT naturally expires (5 minutes in this demonstration), even after logout.</p>
-            <p class="mb-1"><strong>Metric for Calculation:</strong> Revocation Latency (RL)</p>
-            <div class="rl-metric-formula-box">
-                <span id="rl-metric-formula"></span>
-            </div>
-            <p class="mb-1"><strong>Definition:</strong> Revocation latency is the time between a decision to remove access and the point at which that access is actually gone.</p>
-            <p class="mb-1"><strong>Session RL Calculation:</strong> Access Invalidated Time − Revocation Time</p>
-            <p class="mb-1 fs-5 fw-bold" id="session-rl-result">Session RL Calculation:</p>
-            <p class="mb-1"><strong>Token RL Calculation:</strong> Access Invalidated Time − Revocation Time</p>
+            {{-- <p class="mb-1"><strong>Session RL Calculation:</strong></p> --}}
+            <p class="mb-3 fs-5 fw-bold" id="session-rl-result">Session RL Calculation:</p>
+            {{-- <p class="mb-1"><strong>Token RL Calculation:</strong></p> --}}
             <p class="mb-0 fs-5 fw-bold" id="token-rl-result">Token RL Calculation:</p>
         </div>
     </div>
@@ -235,12 +214,12 @@
             <canvas id="attackSuccessRateChart"></canvas>
         </div>
         <div class="border rounded p-3 mt-4 bg-light">
-            <p class="mb-2"><strong>Description:</strong> Session access is invalidated immediately when the victim logs out, so unauthorized access attempts are quickly denied. Token access remains valid until the JWT naturally expires, giving the attacker a longer window to successfully replay the captured credential.</p>
+            {{-- <p class="mb-2"><strong>Description:</strong> Session access is invalidated immediately when the victim logs out, so unauthorized access attempts are quickly denied. Token access remains valid until the JWT naturally expires, giving the attacker a longer window to successfully replay the captured credential.</p>
             <p class="mb-1"><strong>Metric for Calculation:</strong> Attack Success Rate (ASR)</p>
             <div class="rl-metric-formula-box">
                 <span id="asr-metric-formula"></span>
             </div>
-            <p class="mb-1"><strong>Definition:</strong> Attack success rate measures the proportion of unauthorized access attempts that succeed out of the total attempts made by the attacker.</p>
+            <p class="mb-1"><strong>Definition:</strong> Attack success rate measures the proportion of unauthorized access attempts that succeed out of the total attempts made by the attacker.</p> --}}
             <p class="mb-1"><strong>Session ASR Calculation:</strong> Successful Attempts / Total Attempts</p>
             <p class="mb-1 fs-5 fw-bold" id="session-asr-result">Session ASR Calculation:</p>
             <p class="mb-1"><strong>Token ASR Calculation:</strong> Successful Attempts / Total Attempts</p>
@@ -256,19 +235,8 @@
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-    katex.render('RL = T_{\\text{Access Invalid}} - T_{\\text{Revocation}}', document.getElementById('rl-metric-formula'), {
-        displayMode: true,
-        throwOnError: false,
-    });
-
-    katex.render('ASR = \\frac{N_{\\text{Successful Access}}}{N_{\\text{Total Attempts}}} \\times 100\\%', document.getElementById('asr-metric-formula'), {
-        displayMode: true,
-        throwOnError: false,
-    });
-
     document.addEventListener('DOMContentLoaded', function () {
         const sessionButton = document.getElementById('unauthorized-access-btn');
         const tokenButton = document.getElementById('unauthorized-token-btn');
