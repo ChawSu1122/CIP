@@ -27,7 +27,7 @@
 
     <div class="mb-3">
         <h1 class="page-title">Data Exposure Risk</h1>
-        <p class="page-copy">This page compares how credential and identity data is exposed in session-based versus token-based authentication flows, with a simple payload simulation for each method.</p>
+        {{-- <p class="page-copy">This page compares how credential and identity data is exposed in session-based versus token-based authentication flows, with a simple payload simulation for each method.</p> --}}
     </div>
 
     <div class="row row-cols-1 row-cols-lg-2 gx-4 gy-4 mt-3">
@@ -212,12 +212,19 @@
         </div>
     </div>
 
-    <div class="card shadow-sm border-0 mt-4">
+    <div id="comparison-result-card" class="card shadow-sm border-0 mt-4 d-none">
+        <div class="card-body">
+            <h3 class="h5 mb-2">Comparison Result</h3>
+            <p id="comparison-result-text" class="mb-0 fw-bold text-success fs-4"></p>
+        </div>
+    </div>
+
+    {{-- <div class="card shadow-sm border-0 mt-4">
         <div class="card-body">
             <h2 class="h5 mb-2">Comparison Summary</h2>
             <p class="mb-0 text-secondary">Session-based authentication keeps most identity state on the server, while token-based authentication relies on a client-held credential that can be exposed more easily if copied, logged, or intercepted.</p>
         </div>
-    </div>
+    </div> --}}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
@@ -231,6 +238,8 @@
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
         const chartCanvas = document.getElementById('exposureRiskChart');
         const chartLegend = document.getElementById('chart-legend');
+        const comparisonResultCard = document.getElementById('comparison-result-card');
+        const comparisonResultText = document.getElementById('comparison-result-text');
         let exposureChart = null;
         const chartState = {
             sessionCount: null,
@@ -238,6 +247,33 @@
             sessionFields: [],
             tokenFields: [],
         };
+
+        function updateComparisonResult() {
+            const sessionCount = chartState.sessionCount;
+            const tokenCount = chartState.tokenCount;
+
+            if (sessionCount === null || tokenCount === null) {
+                comparisonResultCard.classList.add('d-none');
+                return;
+            }
+
+            comparisonResultCard.classList.remove('d-none');
+
+            if (sessionCount < tokenCount) {
+                comparisonResultText.textContent = `Session is winner. Session-based authentication achieves a lower data exposure risk (${sessionCount} exposed fields) than token-based authentication (${tokenCount} exposed fields).`;
+                comparisonResultText.className = 'mb-0 fw-bold text-success fs-4';
+                return;
+            }
+
+            if (tokenCount < sessionCount) {
+                comparisonResultText.textContent = 'Token is winner. Token-based authentication achieves a lower data exposure risk than session-based authentication.';
+                comparisonResultText.className = 'mb-0 fw-bold text-danger fs-4';
+                return;
+            }
+
+            comparisonResultText.textContent = `Both are tied. Both authentication methods expose the same number of fields (${sessionCount} exposed fields).`;
+            comparisonResultText.className = 'mb-0 fw-bold text-warning fs-4';
+        }
 
         const valueLabelPlugin = {
             id: 'valueLabel',
@@ -439,6 +475,7 @@
             chartState.sessionFields = data.session.exposed_fields || [];
             updateSessionSummary(data.session);
             renderExposureChart();
+            updateComparisonResult();
         });
 
         analyzeTokenButton.addEventListener('click', async () => {
@@ -458,9 +495,11 @@
             chartState.tokenFields = data.token.exposed_fields || [];
             updateTokenSummary(data.token);
             renderExposureChart();
+            updateComparisonResult();
         });
 
         renderExposureChart();
+        updateComparisonResult();
     });
 </script>
 @endsection
