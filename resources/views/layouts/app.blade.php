@@ -47,7 +47,7 @@
                                 <ul class="dropdown-menu" aria-labelledby="authDropdown">
                                     <li><a class="dropdown-item" href="{{ route('session.login') }}">Session Login</a></li>
                                     <li><a class="dropdown-item" href="{{ route('token.login') }}">Token Login</a></li>
-                                    <li><a class="dropdown-item" href="{{ route('analysis.login') }}">Analysis Login</a></li>
+                                    {{-- <li><a class="dropdown-item" href="{{ route('analysis.login') }}">Analysis Login</a></li> --}}
                                     <!-- <li><a class="dropdown-item" href="{{ route('token.demo') }}">Token Demo</a></li>
                                     <li><a class="dropdown-item" href="{{ route('api.docs') }}">API Docs</a></li> -->
                                 </ul>

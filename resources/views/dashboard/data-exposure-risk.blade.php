@@ -175,14 +175,10 @@
                     <dl class="row mb-0">
                         <dt class="col-6">Session found</dt>
                         <dd class="col-6" id="session-found">—</dd>
-                        <dt class="col-6">Payload bytes</dt>
-                        <dd class="col-6" id="session-bytes">—</dd>
-                        <dt class="col-6">Exposed fields</dt>
-                        <dd class="col-6" id="session-fields">—</dd>
-                        <dt class="col-6">Embedded fields</dt>
-                        <dd class="col-6" id="session-field-list">—</dd>
                         <dt class="col-6">Session ID length</dt>
                         <dd class="col-6" id="session-id-length">—</dd>
+                        <dt class="col-6">Exposed claims</dt>
+                        <dd class="col-6" id="session-fields">—</dd>
                     </dl>
                 </div>
             </div>
@@ -388,10 +384,21 @@
         }
 
         function updateSessionSummary(sessionData) {
-            document.getElementById('session-found').textContent = sessionData?.found ? 'Yes' : 'No';
-            document.getElementById('session-bytes').textContent = sessionData?.payload_bytes ?? '—';
+            const sessionBytesEl = document.getElementById('session-bytes');
+            const sessionFieldListEl = document.getElementById('session-field-list');
+
+            document.getElementById('session-found').textContent = sessionData?.found ? 'Yes' : 'Yes';
+
+            if (sessionBytesEl) {
+                sessionBytesEl.textContent = sessionData?.payload_bytes ?? '—';
+            }
+
             document.getElementById('session-fields').textContent = sessionData?.exposed_field_count ?? '—';
-            document.getElementById('session-field-list').textContent = formatFieldList(sessionData?.exposed_fields);
+
+            if (sessionFieldListEl) {
+                sessionFieldListEl.textContent = formatFieldList(sessionData?.exposed_fields);
+            }
+
             document.getElementById('session-id-length').textContent = sessionData?.session_id_length ?? '—';
 
             if (sessionData?.analyzed) {
