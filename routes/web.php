@@ -40,6 +40,43 @@ Route::view('/api-docs', 'api-docs')->name('api.docs');
 
 Route::view('/session-login', 'session-login')->name('session.login');
 
+Route::view('/analysis-login', 'analysis-login')->name('analysis.login');
+Route::post('/analysis-login', function (Request $request) {
+    $credentials = $request->validate([
+        'email' => ['required', 'email'],
+        'password' => ['required', 'string'],
+    ]);
+
+    $remember = (bool) $request->boolean('remember', false);
+    $success = Auth::attempt($credentials, $remember);
+
+    if (! $success) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Incorrect email or password. Please try again.',
+        ], 422);
+    }
+
+    if (Auth::user()?->role !== 'analysis') {
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return response()->json([
+            'success' => false,
+            'message' => 'This login is for analysis users only.',
+        ], 403);
+    }
+
+    $request->session()->regenerate();
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Analysis login successful',
+        'redirect' => route('dashboard.revocation-latency'),
+    ]);
+})->name('analysis.login.submit');
+
 Route::post('/session-login', function (Request $request) {
     $credentials = $request->only('email', 'password');
     $remember = (bool) $request->input('remember', false);
@@ -91,10 +128,34 @@ Route::view('/dashboard/scalability', 'dashboard.scalability')->name('dashboard.
 Route::view('/dashboard/storage', 'dashboard.storage')->name('dashboard.storage');
 Route::view('/dashboard/security', 'dashboard.security')->name('dashboard.security');
 Route::get('/dashboard', function () {
+    if (! Auth::check()) {
+        return redirect()->route('analysis.login');
+    }
+
+    if (Auth::user()->role !== 'analysis') {
+        return redirect()->route('analysis.login');
+    }
+
     return redirect()->route('dashboard.revocation-latency');
 })->name('dashboard');
 
-Route::view('/dashboard/revocation-latency', 'dashboard.revocation-latency')->name('dashboard.revocation-latency');
+Route::middleware(['auth'])->group(function () {
+    Route::get('/dashboard/revocation-latency', function () {
+        if (Auth::user()->role !== 'analysis') {
+            abort(403, 'Access denied. Only analysis users can manage the Security Testing Dashboard.');
+        }
+
+        return view('dashboard.revocation-latency');
+    })->name('dashboard.revocation-latency');
+
+    Route::get('/dashboard/data-exposure-risk', function () {
+        if (Auth::user()->role !== 'analysis') {
+            abort(403, 'Access denied. Only analysis users can manage the Security Testing Dashboard.');
+        }
+
+        return view('dashboard.data-exposure-risk');
+    })->name('dashboard.data-exposure-risk');
+});
 Route::post('/dashboard/revocation-latency/reset-captured-credentials', function () {
     ExperimentMetric::where('auth_type', 'phish')
         ->where('action', 'link_clicked')
@@ -119,7 +180,6 @@ Route::post('/dashboard/revocation-latency/security-alert/clear-on-login', funct
 
     return response()->json(['success' => true]);
 })->middleware('auth')->name('dashboard.revocation-latency.security-alert.clear-on-login');
-Route::view('/dashboard/data-exposure-risk', 'dashboard.data-exposure-risk')->name('dashboard.data-exposure-risk');
 Route::post('/dashboard/revocation-latency/security-alert', function (Request $request) {
     $validated = $request->validate([
         'type' => 'required|string|in:session,token',

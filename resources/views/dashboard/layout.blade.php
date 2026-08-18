@@ -160,9 +160,6 @@
             </div>
 
             <ul class="menu">
-                <!-- <li>
-                    <a href="/dashboard" class="menu-item {{ request()->is('dashboard') ? 'active' : '' }}">Dashboard</a>
-                </li> -->
                 <li>
                     <a href="/dashboard/revocation-latency" class="menu-item {{ request()->is('dashboard/revocation-latency') ? 'active' : '' }}">Revocation Latency & Attack Success Rate</a>
                 </li>
@@ -170,6 +167,29 @@
                     <a href="/dashboard/data-exposure-risk" class="menu-item {{ request()->is('dashboard/data-exposure-risk') ? 'active' : '' }}">Data Exposure Risk</a>
                 </li>
             </ul>
+
+            @auth
+                <div class="mt-auto pt-3 border-top border-secondary-subtle">
+                    <div class="dropdown">
+                        <button class="btn btn-light w-100 dropdown-toggle text-start d-flex align-items-center justify-content-between" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span>
+                                <span class="d-block small text-uppercase text-secondary">Analysis</span>
+                                <strong>{{ Auth::user()->name }}</strong>
+                            </span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end w-100">
+                            <li><span class="dropdown-item-text px-3 py-2 text-secondary">Role: {{ ucfirst(Auth::user()->role ?? 'user') }}</span></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" href="#" onclick="event.preventDefault(); document.getElementById('analysis-logout-form').submit();">Logout</a>
+                                <form id="analysis-logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
+                                    @csrf
+                                </form>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            @endauth
         </aside>
 
         <main class="container-fluid content">
