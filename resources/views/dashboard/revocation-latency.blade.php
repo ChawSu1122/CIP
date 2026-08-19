@@ -283,6 +283,8 @@
         let tokenLogoutTimeMs = null;
         let sessionAccessInvalidMs = null;
         let tokenAccessInvalidMs = null;
+        let tokenExpiryMs = null;
+        let chartStartMs = null;
         let lastTokenValidation = null;
 
         const attackSuccessRateState = {
@@ -340,15 +342,24 @@
         }
 
         function resolveChartStartTime(type, data, phishTs) {
-            if (phishTs && phishTs > 0) {
-                return phishTs;
-            }
-
+            // Anchor the timeline to the moment the victim authenticated so both
+            // series share the same meaningful baseline (time since login).
             if (type === 'token') {
                 const issuedAtMs = data.token_issued_at ? Date.parse(data.token_issued_at) : null;
                 if (issuedAtMs && !Number.isNaN(issuedAtMs)) {
                     return issuedAtMs;
                 }
+            }
+
+            if (type === 'session') {
+                const loginMs = data.session_login_time ? Date.parse(data.session_login_time) : null;
+                if (loginMs && !Number.isNaN(loginMs)) {
+                    return loginMs;
+                }
+            }
+
+            if (phishTs && phishTs > 0) {
+                return phishTs;
             }
 
             return Date.now();
@@ -587,6 +598,8 @@
                 tokenLogoutTimeMs: tokenLogoutTimeMs,
                 sessionAccessInvalidMs: sessionAccessInvalidMs,
                 tokenAccessInvalidMs: tokenAccessInvalidMs,
+                tokenExpiryMs: tokenExpiryMs,
+                chartStartMs: chartStartMs,
                 sessionRl: sessionRlResult.textContent,
                 tokenRl: tokenRlResult.textContent,
                 attackSuccessRates: attackSuccessRateState,
@@ -617,11 +630,23 @@
                     Object.assign(tokenState, snapshot.token);
                 }
 
+                if (snapshot.tokenExpiryMs) {
+                    tokenExpiryMs = snapshot.tokenExpiryMs;
+                }
+
+                if (snapshot.chartStartMs) {
+                    chartStartMs = snapshot.chartStartMs;
+                } else if (snapshot.session?.chartStartTime || snapshot.token?.chartStartTime) {
+                    chartStartMs = snapshot.session?.chartStartTime || snapshot.token?.chartStartTime;
+                }
+
                 if (Array.isArray(snapshot.markers)) {
                     chartMarkers.length = 0;
                     snapshot.markers.forEach(function (marker) {
                         if (marker.type === 'token' && marker.color === '#dc2626') {
-                            marker.x = tokenExpiryChartMinute;
+                            marker.x = tokenExpiryMs
+                                ? Number(toChartMinutes(tokenState.chartStartTime, tokenExpiryMs).toFixed(3))
+                                : tokenExpiryChartMinute;
                             marker.label = 'Token Expired';
                             marker.style = 'callout';
                         }
@@ -755,6 +780,8 @@
             Object.assign(tokenState, createTracker());
             sessionAccessInvalidMs = null;
             tokenAccessInvalidMs = null;
+            tokenExpiryMs = null;
+            chartStartMs = null;
             attackSuccessRateState.session = { attempts: 0, successes: 0 };
             attackSuccessRateState.token = { attempts: 0, successes: 0 };
             updateAttackSuccessRateUI();
@@ -818,8 +845,8 @@
                 return null;
             }
 
-            const revocationSeconds = Math.max(0, Math.round((tokenLogoutTimeMs - tokenState.chartStartTime) / 1000));
-            return Math.max(0, tokenTtlSeconds - revocationSeconds);
+            const accessInvalidMs = tokenExpiryMs || (tokenState.chartStartTime + (tokenTtlSeconds * 1000));
+            return Math.max(0, Math.round((accessInvalidMs - tokenLogoutTimeMs) / 1000));
         }
 
         function updateComparisonResult() {
@@ -1059,10 +1086,10 @@
                 return;
             }
 
-            const accessInvalidLabel = formatDuration(tokenTtlSeconds);
+            const accessInvalidMs = tokenExpiryMs || (startMs + (tokenTtlSeconds * 1000));
+            const accessInvalidLabel = formatElapsedFromStart(startMs, accessInvalidMs);
             const revocationLabel = formatElapsedFromStart(startMs, revocationMs);
-            const revocationSeconds = Math.max(0, Math.round((revocationMs - startMs) / 1000));
-            const latencySeconds = Math.max(0, tokenTtlSeconds - revocationSeconds);
+            const latencySeconds = Math.max(0, Math.round((accessInvalidMs - revocationMs) / 1000));
             const resultLabel = formatDuration(latencySeconds);
 
             tokenRlResult.textContent = `Token RL Calculation: ${accessInvalidLabel} − ${revocationLabel} = ${resultLabel}`;
@@ -1186,7 +1213,7 @@
                                         }
 
                                         const totalSeconds = Math.round(minutes * 60);
-                                        return `${formatDuration(totalSeconds)} from attack start`;
+                                        return `${formatDuration(totalSeconds)} since login`;
                                     },
                                     label: function (context) {
                                         const value = context.parsed.y;
@@ -1232,7 +1259,12 @@
                 tokenLogoutTimeMs = null;
                 tokenAccessInvalidMs = null;
             }
-            state.chartStartTime = startTimeMs || Date.now();
+            // Both series share one timeline origin so that the same real-world
+            // moment always maps to the same x-position for session and token.
+            if (chartStartMs === null) {
+                chartStartMs = startTimeMs || Date.now();
+            }
+            state.chartStartTime = chartStartMs;
             state.samplePoints = [{ x: 0, y: 1 }];
             state.denialRecorded = false;
             state.logoutMarkerAdded = false;
@@ -1364,7 +1396,9 @@
 
             const denialTimeMs = Date.now();
             const denialMinute = toChartMinutes(tokenState.chartStartTime, denialTimeMs);
-            const expirationMinute = tokenExpiryChartMinute;
+            const expirationMinute = (tokenExpiryMs && tokenState.chartStartTime)
+                ? toChartMinutes(tokenState.chartStartTime, tokenExpiryMs)
+                : tokenExpiryChartMinute;
 
             if (!tokenState.expiryMarkerAdded) {
                 addMarker(expirationMinute, 'Token Expired', '#dc2626', 'token', 'callout');
@@ -1378,7 +1412,7 @@
                 appendPoint(tokenState, denialMinute, 0);
             }
 
-            tokenAccessInvalidMs = tokenState.chartStartTime + (tokenTtlSeconds * 1000);
+            tokenAccessInvalidMs = tokenExpiryMs || (tokenState.chartStartTime + (tokenTtlSeconds * 1000));
 
             renderTokenRL();
             renderChart();
@@ -1499,6 +1533,10 @@
                 const data = await postJson(validateTokenUrl, { token: capturedValue });
                 applyServerLogoutTime(data, 'token');
                 lastTokenValidation = data;
+
+                if (data.token_expiration_time) {
+                    tokenExpiryMs = Date.parse(data.token_expiration_time);
+                }
 
                 // If the server refreshed the token, keep the form/display in sync so the
                 // 5-minute countdown restarts on every click.

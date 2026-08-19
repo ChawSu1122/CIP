@@ -8,6 +8,26 @@ class RevocationLatencyStore
 {
     private const TTL_SECONDS = 86400;
 
+    public static function recordSessionLogin(string $sessionId, string $loginTime): void
+    {
+        if ($sessionId === '') {
+            return;
+        }
+
+        Cache::put(self::sessionLoginKey($sessionId), $loginTime, self::TTL_SECONDS);
+    }
+
+    public static function getSessionLoginTime(string $sessionId): ?string
+    {
+        if ($sessionId === '') {
+            return null;
+        }
+
+        $value = Cache::get(self::sessionLoginKey($sessionId));
+
+        return is_string($value) && $value !== '' ? $value : null;
+    }
+
     public static function recordSessionLogout(string $sessionId, string $logoutTime): void
     {
         if ($sessionId === '') {
@@ -51,6 +71,11 @@ class RevocationLatencyStore
     private static function sessionKey(string $sessionId): string
     {
         return 'revocation_logout:session:'.$sessionId;
+    }
+
+    private static function sessionLoginKey(string $sessionId): string
+    {
+        return 'revocation_login:session:'.$sessionId;
     }
 
     private static function tokenKey(string $token): string

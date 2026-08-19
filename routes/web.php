@@ -89,6 +89,8 @@ Route::post('/session-login', function (Request $request) {
         $request->session()->put('victim_session_id', $request->session()->getId());
         $request->session()->put('victim_token', null);
 
+        RevocationLatencyStore::recordSessionLogin($request->session()->getId(), now()->toIso8601String());
+
         AuthSecurityEvent::where('user_id', Auth::id())
             ->where('status', 'pending')
             ->delete();
@@ -357,12 +359,14 @@ Route::post('/dashboard/revocation-latency/validate/session', function (Request 
     $session = DB::table('sessions')->where('id', $sessionId)->first();
     $isValid = $session && $session->last_activity >= (time() - (config('session.lifetime') * 60));
     $logoutTime = RevocationLatencyStore::getSessionLogoutTime($sessionId);
+    $sessionLoginTime = RevocationLatencyStore::getSessionLoginTime($sessionId);
 
     return response()->json([
         'valid' => $isValid,
         'expired' => ! $isValid,
         'logout_occurred' => ! empty($logoutTime),
         'logout_time' => $logoutTime,
+        'session_login_time' => $sessionLoginTime,
         'token_expiration_time' => null,
         'revocation_latency_seconds' => null,
     ]);
