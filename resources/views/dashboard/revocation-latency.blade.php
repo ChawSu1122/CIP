@@ -268,7 +268,7 @@
         const securityAlertUrl = "{{ route('dashboard.revocation-latency.security-alert') }}";
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         const xAxisMax = 6;
-        const tokenTtlSeconds = 300;
+        const tokenTtlSeconds = 180;
         const tokenExpiryChartMinute = tokenTtlSeconds / 60;
         const sessionLogoutEventKey = 'victim-logout-event-session';
         const tokenLogoutEventKey = 'victim-logout-event-token';
@@ -283,7 +283,6 @@
         let tokenLogoutTimeMs = null;
         let sessionAccessInvalidMs = null;
         let tokenAccessInvalidMs = null;
-        let tokenExpiryMs = null;
         let chartStartMs = null;
         let lastTokenValidation = null;
 
@@ -598,7 +597,6 @@
                 tokenLogoutTimeMs: tokenLogoutTimeMs,
                 sessionAccessInvalidMs: sessionAccessInvalidMs,
                 tokenAccessInvalidMs: tokenAccessInvalidMs,
-                tokenExpiryMs: tokenExpiryMs,
                 chartStartMs: chartStartMs,
                 sessionRl: sessionRlResult.textContent,
                 tokenRl: tokenRlResult.textContent,
@@ -630,10 +628,6 @@
                     Object.assign(tokenState, snapshot.token);
                 }
 
-                if (snapshot.tokenExpiryMs) {
-                    tokenExpiryMs = snapshot.tokenExpiryMs;
-                }
-
                 if (snapshot.chartStartMs) {
                     chartStartMs = snapshot.chartStartMs;
                 } else if (snapshot.session?.chartStartTime || snapshot.token?.chartStartTime) {
@@ -644,9 +638,7 @@
                     chartMarkers.length = 0;
                     snapshot.markers.forEach(function (marker) {
                         if (marker.type === 'token' && marker.color === '#dc2626') {
-                            marker.x = tokenExpiryMs
-                                ? Number(toChartMinutes(tokenState.chartStartTime, tokenExpiryMs).toFixed(3))
-                                : tokenExpiryChartMinute;
+                            marker.x = tokenExpiryChartMinute;
                             marker.label = 'Token Expired';
                             marker.style = 'callout';
                         }
@@ -780,7 +772,6 @@
             Object.assign(tokenState, createTracker());
             sessionAccessInvalidMs = null;
             tokenAccessInvalidMs = null;
-            tokenExpiryMs = null;
             chartStartMs = null;
             attackSuccessRateState.session = { attempts: 0, successes: 0 };
             attackSuccessRateState.token = { attempts: 0, successes: 0 };
@@ -794,7 +785,7 @@
             if (revocationChart) {
                 revocationChart.data.datasets = [
                     buildDataset(sessionState, 'Session (Immediate Revocation)', '#2563eb', 'rgba(37, 99, 235, 0.08)'),
-                    buildDataset(tokenState, 'Token (Expires After 5 Minutes)', '#dc3545', 'rgba(220, 53, 69, 0.08)'),
+                    buildDataset(tokenState, 'Token (Expires After 3 Minutes)', '#dc3545', 'rgba(220, 53, 69, 0.08)'),
                 ];
                 revocationChart.update();
             }
@@ -845,7 +836,7 @@
                 return null;
             }
 
-            const accessInvalidMs = tokenExpiryMs || (tokenState.chartStartTime + (tokenTtlSeconds * 1000));
+            const accessInvalidMs = tokenState.chartStartTime + (tokenTtlSeconds * 1000);
             return Math.max(0, Math.round((accessInvalidMs - tokenLogoutTimeMs) / 1000));
         }
 
@@ -1086,7 +1077,7 @@
                 return;
             }
 
-            const accessInvalidMs = tokenExpiryMs || (startMs + (tokenTtlSeconds * 1000));
+            const accessInvalidMs = startMs + (tokenTtlSeconds * 1000);
             const accessInvalidLabel = formatElapsedFromStart(startMs, accessInvalidMs);
             const revocationLabel = formatElapsedFromStart(startMs, revocationMs);
             const latencySeconds = Math.max(0, Math.round((accessInvalidMs - revocationMs) / 1000));
@@ -1162,7 +1153,7 @@
 
             const datasets = [
                 buildDataset(sessionState, 'Session (Immediate Revocation)', '#2563eb', 'rgba(37, 99, 235, 0.08)'),
-                buildDataset(tokenState, 'Token (Expires After 5 Minutes)', '#dc3545', 'rgba(220, 53, 69, 0.08)'),
+                buildDataset(tokenState, 'Token (Expires After 3 Minutes)', '#dc3545', 'rgba(220, 53, 69, 0.08)'),
             ];
 
             if (!revocationChart) {
@@ -1396,9 +1387,7 @@
 
             const denialTimeMs = Date.now();
             const denialMinute = toChartMinutes(tokenState.chartStartTime, denialTimeMs);
-            const expirationMinute = (tokenExpiryMs && tokenState.chartStartTime)
-                ? toChartMinutes(tokenState.chartStartTime, tokenExpiryMs)
-                : tokenExpiryChartMinute;
+            const expirationMinute = tokenExpiryChartMinute;
 
             if (!tokenState.expiryMarkerAdded) {
                 addMarker(expirationMinute, 'Token Expired', '#dc2626', 'token', 'callout');
@@ -1412,7 +1401,7 @@
                 appendPoint(tokenState, denialMinute, 0);
             }
 
-            tokenAccessInvalidMs = tokenExpiryMs || (tokenState.chartStartTime + (tokenTtlSeconds * 1000));
+            tokenAccessInvalidMs = tokenState.chartStartTime + (tokenTtlSeconds * 1000);
 
             renderTokenRL();
             renderChart();
@@ -1534,12 +1523,8 @@
                 applyServerLogoutTime(data, 'token');
                 lastTokenValidation = data;
 
-                if (data.token_expiration_time) {
-                    tokenExpiryMs = Date.parse(data.token_expiration_time);
-                }
-
                 // If the server refreshed the token, keep the form/display in sync so the
-                // 5-minute countdown restarts on every click.
+                // 3-minute countdown restarts on every click.
                 if (data.token && data.token !== capturedValue) {
                     tokenInput.value = data.token;
                     if (tokenVictimToken) tokenVictimToken.textContent = data.token;
