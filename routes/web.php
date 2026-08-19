@@ -118,6 +118,9 @@ Route::post('/session-login', function (Request $request) {
 })->name('session.login.submit');
 
 Route::view('/token-login', 'token-login')->name('token.login');
+Route::get('/csrf-token', function () {
+    return response()->json(['csrf_token' => csrf_token()]);
+})->name('csrf.token');
 Route::post('/token-login-state', function (Request $request) {
     $request->session()->put('victim_authentication_type', 'token');
     $request->session()->put('victim_session_id', null);

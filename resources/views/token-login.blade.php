@@ -56,7 +56,7 @@
 
 <script>
     const loginAlert = document.getElementById('login-alert');
-    const csrfToken = '{{ csrf_token() }}';
+    let csrfToken = '{{ csrf_token() }}';
 
     const apiLoginButton = document.getElementById('api-login-button');
     const tokenPasswordToggle = document.getElementById('token-password-toggle');
@@ -66,6 +66,27 @@
         loginAlert.className = `alert alert-${type} alert-dismissible fade show mt-3`;
         loginAlert.textContent = message;
         loginAlert.classList.remove('d-none');
+    }
+
+    async function refreshCsrfToken() {
+        try {
+            const response = await fetch('{{ route('csrf.token') }}', {
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data && data.csrf_token) {
+                    csrfToken = data.csrf_token;
+                }
+            }
+        } catch (error) {
+            // Keep the current token if the refresh fails.
+        }
     }
 
     tokenPasswordToggle.addEventListener('click', (e) => {
@@ -111,6 +132,30 @@
                 return;
             }
 
+            const submitWebLogin = async () => {
+                const sessionPayload = new URLSearchParams();
+                sessionPayload.append('_token', csrfToken);
+                sessionPayload.append('email', email);
+                sessionPayload.append('password', password);
+                sessionPayload.append('remember', '1');
+
+                return fetch('/login', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    redirect: 'manual',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: sessionPayload,
+                });
+            };
+
+            // Use a fresh CSRF token so a stale/rotated session cannot reject login.
+            await refreshCsrfToken();
+
             await fetch('/token-login-state', {
                 method: 'POST',
                 credentials: 'same-origin',
@@ -121,24 +166,14 @@
                 },
             });
 
-            const sessionPayload = new URLSearchParams();
-            sessionPayload.append('_token', csrfToken);
-            sessionPayload.append('email', email);
-            sessionPayload.append('password', password);
-            sessionPayload.append('remember', '1');
+            let sessionResponse = await submitWebLogin();
 
-            const sessionResponse = await fetch('/login', {
-                method: 'POST',
-                credentials: 'same-origin',
-                redirect: 'manual',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRF-TOKEN': csrfToken,
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                body: sessionPayload,
-            });
+            // Laravel returns 419 when the CSRF token is stale (e.g. after a session
+            // rotation or logout done elsewhere). Refresh and retry once.
+            if (sessionResponse.status === 419) {
+                await refreshCsrfToken();
+                sessionResponse = await submitWebLogin();
+            }
 
             const sessionOk =
                 sessionResponse.type === 'opaqueredirect' ||
@@ -147,6 +182,7 @@
                 sessionResponse.ok;
 
             if (sessionOk) {
+                await refreshCsrfToken();
                 await fetch('{{ route('dashboard.revocation-latency.security-alert.clear-on-login') }}', {
                     method: 'POST',
                     credentials: 'same-origin',
@@ -160,7 +196,8 @@
                 return;
             }
 
-            showTokenAlert('Token created, but the web session could not be established. Please try again.', 'danger');
+            showTokenAlert('Token created, but the web session could not be established. Please try again.' + (sessionResponse.status ? ` (HTTP ${sessionResponse.status})` : ''),
+                'danger');
         } catch (error) {
             showTokenAlert('An unexpected error occurred. Please try again.', 'danger');
         }
