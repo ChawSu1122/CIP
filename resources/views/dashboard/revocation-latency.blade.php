@@ -1386,10 +1386,7 @@
 
             const denialTimeMs = Date.now();
             const denialMinute = toChartMinutes(tokenState.chartStartTime, denialTimeMs);
-            const expMs = data && data.token_expiration_time ? Date.parse(data.token_expiration_time) : null;
-            const expirationMinute = (expMs && !Number.isNaN(expMs) && tokenState.chartStartTime)
-                ? toChartMinutes(tokenState.chartStartTime, expMs)
-                : tokenExpiryChartMinute;
+            const expirationMinute = tokenExpiryChartMinute;
 
             if (!tokenState.expiryMarkerAdded) {
                 addMarker(expirationMinute, 'Token Expired', '#dc2626', 'token', 'callout');
@@ -1565,6 +1562,15 @@
 
                     if (!tokenState.chartStartTime) {
                         startTest(tokenState, 'token', resolveChartStartTime('token', data, tokenPhishTs));
+                    }
+
+                    
+                    if (getElapsedMinutes(tokenState) > tokenExpiryChartMinute) {
+                        tokenState.unauthorizedAttempts = (tokenState.unauthorizedAttempts || 0) + 1;
+                        recordAttackAttempt('token', false);
+                        recordTokenExpiredAccess(data);
+                        showAlert('JWT expired: captured token is no longer valid.');
+                        return;
                     }
 
                     tokenState.unauthorizedAttempts = (tokenState.unauthorizedAttempts || 0) + 1;
