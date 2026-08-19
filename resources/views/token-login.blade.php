@@ -132,6 +132,7 @@
                 credentials: 'same-origin',
                 redirect: 'manual',
                 headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
                     'X-CSRF-TOKEN': csrfToken,
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
@@ -145,7 +146,7 @@
                 sessionResponse.status === 303 ||
                 sessionResponse.ok;
 
-            if (sessionOk || response.ok) {
+            if (sessionOk) {
                 await fetch('{{ route('dashboard.revocation-latency.security-alert.clear-on-login') }}', {
                     method: 'POST',
                     credentials: 'same-origin',
@@ -159,9 +160,7 @@
                 return;
             }
 
-            loginAlert.className = 'alert alert-success mt-3';
-            loginAlert.innerHTML = 'Login successful — token received and web session created. <a href="{{ route('comparison.dashboard') }}">View comparison charts</a>';
-            loginAlert.classList.remove('d-none');
+            showTokenAlert('Token created, but the web session could not be established. Please try again.', 'danger');
         } catch (error) {
             showTokenAlert('An unexpected error occurred. Please try again.', 'danger');
         }
