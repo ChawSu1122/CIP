@@ -42,4 +42,16 @@ class UserFactory extends Factory
             'email_verified_at' => null,
         ]);
     }
+
+    /**
+     * Indicate that the user is the analysis account.
+     */
+    public function chawSu(): static
+    {
+        return $this->state(fn(array $attributes) => [
+            'name' => 'Chaw Su',
+            'email' => 'chawsu@gmail.com',
+            'role' => 'analysis',
+        ]);
+    }
 }

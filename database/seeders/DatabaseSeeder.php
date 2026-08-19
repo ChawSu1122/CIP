@@ -15,7 +15,7 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // Create two specific users
+        // Create specific users
         User::factory()->create([
             'name' => 'Alice',
             'email' => 'alice@gmail.com',
@@ -25,6 +25,18 @@ class DatabaseSeeder extends Seeder
             'name' => 'Bob',
             'email' => 'bob@gmail.com',
         ]);
+
+        // Aung Kyaw - original 3rd user (id = 3)
+        User::factory()->create([
+            'name' => 'Aung Kyaw',
+            'email' => 'aungkyaw@gmail.com',
+        ]);
+
+        // Generic placeholder user (id = 4)
+        User::factory()->create();
+
+        // (analysis account) - inserted 5th so it gets id = 5
+        User::factory()->chawSu()->create();
 
         // Seed categories
         $this->call(CategorySeeder::class);
@@ -55,7 +67,7 @@ class DatabaseSeeder extends Seeder
 
         Comment::factory()->create([
             'body' => 'You should verify the comparison before buying. Click <a href="/phish">here to compare the listing</a> and make sure the price matches what other sellers are asking in Yangon. Checking several offers before you buy is the safest way to avoid overpaying.',
-            'user_id' => User::factory()->create(['name' => 'Aung Kyaw', 'email' => 'aungkyaw@gmail.com'])->id,
+            'user_id' => User::where('email', 'aungkyaw@gmail.com')->first()->id,
             'post_id' => $featuredPost->id,
         ]);
 

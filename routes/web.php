@@ -467,6 +467,9 @@ Route::middleware(['web','auth'])->group(function () {
             }
 
             if ($authType === 'token' && $victimUser) {
+                if (empty($victimUser->api_token) || JwtHelper::isExpired($victimUser->api_token)) {
+                    $victimUser->createApiToken();
+                }
                 $capturedToken = $victimUser->api_token;
             }
 
