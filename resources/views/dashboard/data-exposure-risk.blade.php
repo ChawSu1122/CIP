@@ -41,7 +41,8 @@
                     <li class="list-group-item py-3">
                         <div class="d-flex justify-content-between align-items-center gap-3">
                             <span class="text-secondary">Browser A (victim)</span>
-                            <span class="fw-semibold">{{ $sessionVictimName }} is logged in and clicks the phishing link.</span>
+                            {{-- <span class="fw-semibold">{{ $sessionVictimName }} is logged in and clicks the phishing link.</span> --}}
+                            <span class="fw-semibold">@if($sessionPhish) {{ $sessionVictimName }} is logged in and clicks the phishing link. @else — @endif</span>
                         </div>
                     </li>
 
@@ -55,7 +56,8 @@
                     <li class="list-group-item py-3">
                         <div class="d-flex justify-content-between align-items-center gap-3">
                             <span class="text-secondary">Authentication Method</span>
-                            <span class="fw-semibold">Session-Based</span>
+                            {{-- <span class="fw-semibold">Session-Based</span> --}}
+                            <span class="fw-semibold">@if($sessionPhish) Session-Based @else — @endif</span>
                         </div>
                     </li>
 
@@ -99,7 +101,8 @@
                     <li class="list-group-item py-3">
                         <div class="d-flex justify-content-between align-items-center gap-3">
                             <span class="text-secondary">Browser A (victim)</span>
-                            <span class="fw-semibold">{{ $tokenVictimName }} is logged in and clicks the phishing link.</span>
+                            {{-- <span class="fw-semibold">{{ $tokenVictimName }} is logged in and clicks the phishing link.</span> --}}
+                            <span class="fw-semibold">@if($tokenPhish) {{ $tokenVictimName }} is logged in and clicks the phishing link. @else — @endif</span>
                         </div>
                     </li>
 
@@ -113,7 +116,8 @@
                     <li class="list-group-item py-3">
                         <div class="d-flex justify-content-between align-items-center gap-3">
                             <span class="text-secondary">Authentication Method</span>
-                            <span class="fw-semibold">Token-Based</span>
+                            {{-- <span class="fw-semibold">Token-Based</span> --}}
+                            <span class="fw-semibold">@if($tokenPhish) Token-Based @else — @endif</span>
                         </div>
                     </li>
 
