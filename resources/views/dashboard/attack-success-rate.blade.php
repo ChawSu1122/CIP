@@ -15,6 +15,13 @@
         ->where('victim_authentication_type', 'session')
         ->latest('created_at')
         ->first();
+
+    $sessionAsrMetrics = ExperimentMetric::where('action', 'attack_success_rate_test')
+        ->where('victim_authentication_type', 'session')
+        ->get();
+    $tokenAsrMetrics = ExperimentMetric::where('action', 'attack_success_rate_test')
+        ->where('victim_authentication_type', 'token')
+        ->get();
 @endphp
 
 <div class="d-flex justify-content-between align-items-start align-items-lg-center flex-wrap gap-3 mb-3">
@@ -33,7 +40,7 @@
             <ul class="list-group list-group-flush">
                 <li class="list-group-item py-3 d-flex justify-content-between align-items-center gap-3">
                     <span class="text-secondary">Browser A (victim)</span>
-                    <span id="session-victim-status" class="fw-semibold">{{ $sessionPhish?->victim_name ?? '—' }} is logged in and clicks the phishing link.</span>
+                    <span id="session-victim-status" class="fw-semibold">{{ $sessionPhish ? $sessionPhish->victim_name . ' is logged in and clicks the phishing link.' : '—' }}</span>
                 </li>
                 <li class="list-group-item py-3 d-flex justify-content-between align-items-center gap-3">
                     <span class="text-secondary">Captured session ID</span>
@@ -41,7 +48,7 @@
                 </li>
                 <li class="list-group-item py-3 d-flex justify-content-between align-items-center gap-3">
                     <span class="text-secondary">Authentication Method</span>
-                    <span id="session-auth-method" class="fw-semibold">Session-Based</span>
+                    <span class="fw-semibold">Session-Based</span>
                 </li>
                 <li class="list-group-item py-3 d-flex justify-content-between align-items-center gap-3">
                     <span class="text-secondary">Time</span>
@@ -65,7 +72,7 @@
             <ul class="list-group list-group-flush">
                 <li class="list-group-item py-3 d-flex justify-content-between align-items-center gap-3">
                     <span class="text-secondary">Browser A (victim)</span>
-                    <span id="token-victim-status" class="fw-semibold">{{ $tokenPhish?->victim_name ?? '—' }} is logged in and clicks the phishing link.</span>
+                    <span id="token-victim-status" class="fw-semibold">{{ $tokenPhish ? $tokenPhish->victim_name . ' is logged in and clicks the phishing link.' : '—' }}</span>
                 </li>
                 <li class="list-group-item py-3 d-flex justify-content-between align-items-center gap-3">
                     <span class="text-secondary">Captured token ID</span>
@@ -73,7 +80,7 @@
                 </li>
                 <li class="list-group-item py-3 d-flex justify-content-between align-items-center gap-3">
                     <span class="text-secondary">Authentication Method</span>
-                    <span id="token-auth-method" class="fw-semibold">Token-Based</span>
+                    <span class="fw-semibold">Token-Based</span>
                 </li>
                 <li class="list-group-item py-3 d-flex justify-content-between align-items-center gap-3">
                     <span class="text-secondary">Time</span>
@@ -90,19 +97,12 @@
     </div>
 </div>
 
-<div id="attack-success-comparison-result-card" class="card shadow-sm border-0 mt-4 d-none">
-    <div class="card-body">
-        <h3 class="h5 mb-2">Comparison Result</h3>
-        <p id="attack-success-comparison-result-text" class="mb-0 fw-bold fs-4"></p>
-    </div>
-</div>
-
 <div id="attack-alert" class="alert alert-warning d-none mt-4" role="alert"></div>
 
 <div id="attack-success-rate-section" class="card shadow-sm border-0 mt-4 d-none">
     <div class="card-header bg-white border-0">
         <h2 class="h5 mb-1">Attack Success Rate Comparison</h2>
-        <p class="mb-0 small text-secondary">Each Unauthorized Access click counts as one attempt.</p>
+        <p class="mb-0 small text-secondary">Each tested user contributes one result to the comparison.</p>
     </div>
     <div class="card-body">
         <div class="table-responsive">
@@ -110,7 +110,7 @@
                 <thead class="table-light">
                     <tr>
                         <th scope="col">Attack Type</th>
-                        <th scope="col" class="text-center">Attempts</th>
+                        <th scope="col" class="text-center">Users Tested</th>
                         <th scope="col" class="text-center">Success</th>
                         <th scope="col" class="text-center">Failed</th>
                         <th scope="col" class="text-center">Success Rate</th>
@@ -119,14 +119,14 @@
                 <tbody>
                     <tr>
                         <td><span class="text-primary fw-semibold">Session Hijacking</span></td>
-                        <td id="session-attempts" class="text-center">0</td>
+                        <td id="session-users-tested" class="text-center">{{ $sessionAsrMetrics->pluck('victim_id')->unique()->count() }}</td>
                         <td id="session-successes" class="text-center text-success fw-semibold">0</td>
                         <td id="session-failures" class="text-center text-danger fw-semibold">0</td>
                         <td id="session-success-rate" class="text-center fw-bold">—</td>
                     </tr>
                     <tr>
                         <td><span class="text-danger fw-semibold">Token Hijacking</span></td>
-                        <td id="token-attempts" class="text-center">0</td>
+                        <td id="token-users-tested" class="text-center">{{ $tokenAsrMetrics->pluck('victim_id')->unique()->count() }}</td>
                         <td id="token-successes" class="text-center text-success fw-semibold">0</td>
                         <td id="token-failures" class="text-center text-danger fw-semibold">0</td>
                         <td id="token-success-rate" class="text-center fw-bold">—</td>
@@ -140,6 +140,13 @@
     </div>
 </div>
 
+<div id="attack-success-comparison-result-card" class="card shadow-sm border-0 mt-4 d-none">
+    <div class="card-body">
+        <h3 class="h5 mb-2">Comparison Result</h3>
+        <p id="attack-success-comparison-result-text" class="mb-0 fw-bold fs-4"></p>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
@@ -147,22 +154,22 @@
         const tokenButton = document.getElementById('unauthorized-token-btn');
         const sessionInput = document.getElementById('captured-session');
         const tokenInput = document.getElementById('captured-token');
-        const sessionVictimStatus = document.getElementById('session-victim-status');
-        const sessionVictimSession = document.getElementById('session-victim-session');
-        const sessionAuthMethod = document.getElementById('session-auth-method');
-        const sessionPhishTime = document.getElementById('session-phish-time');
-        const tokenVictimStatus = document.getElementById('token-victim-status');
-        const tokenVictimToken = document.getElementById('token-victim-token');
-        const tokenAuthMethod = document.getElementById('token-auth-method');
-        const tokenPhishTime = document.getElementById('token-phish-time');
         const alertBox = document.getElementById('attack-alert');
         const section = document.getElementById('attack-success-rate-section');
         const comparisonCard = document.getElementById('attack-success-comparison-result-card');
         const comparisonText = document.getElementById('attack-success-comparison-result-text');
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         const state = {
-            session: { attempts: 0, successes: 0 },
-            token: { attempts: 0, successes: 0 },
+            session: {
+                usersTested: @json($sessionAsrMetrics->pluck('victim_id')->unique()->count()),
+                successes: @json($sessionAsrMetrics->where('success', true)->count()),
+                failed: @json($sessionAsrMetrics->where('success', false)->count()),
+            },
+            token: {
+                usersTested: @json($tokenAsrMetrics->pluck('victim_id')->unique()->count()),
+                successes: @json($tokenAsrMetrics->where('success', true)->count()),
+                failed: @json($tokenAsrMetrics->where('success', false)->count()),
+            },
         };
         let chart = null;
 
@@ -178,7 +185,7 @@
 
         function rate(type) {
             const item = state[type];
-            return item.attempts ? Math.round((item.successes / item.attempts) * 100) : null;
+            return item.usersTested ? Math.round((item.successes / item.usersTested) * 100) : null;
         }
 
         function updateComparison() {
@@ -207,9 +214,9 @@
             ['session', 'token'].forEach(function (type) {
                 const item = state[type];
                 const label = type === 'session' ? 'session' : 'token';
-                document.getElementById(`${label}-attempts`).textContent = item.attempts;
+                document.getElementById(`${label}-users-tested`).textContent = item.usersTested;
                 document.getElementById(`${label}-successes`).textContent = item.successes;
-                document.getElementById(`${label}-failures`).textContent = item.attempts - item.successes;
+                document.getElementById(`${label}-failures`).textContent = item.failed;
                 document.getElementById(`${label}-success-rate`).textContent = rate(type) === null ? '—' : `${rate(type)}%`;
             });
 
@@ -262,10 +269,14 @@
                     body: JSON.stringify(payload),
                 });
                 const data = await response.json();
-                state[type].attempts += 1;
-                if (data.valid) {
-                    state[type].successes += 1;
+                if (!response.ok || !data.recorded) {
+                    showAlert(data.message || 'Unable to record this user test.');
+                    return;
                 }
+
+                state[type].usersTested = data.users_tested;
+                state[type].successes = data.successes;
+                state[type].failed = data.failed;
                 updateTable();
 
                 if (!data.valid) {
@@ -284,7 +295,7 @@
                 showAlert('Please enter the captured session ID before continuing.');
                 return;
             }
-            validate('{{ route('dashboard.revocation-latency.validate.session') }}', { session_id: value }, 'session');
+            validate('{{ route('dashboard.attack-success-rate.test', ['type' => 'session']) }}', { credential: value }, 'session');
         });
 
         tokenButton.addEventListener('click', function () {
@@ -293,22 +304,19 @@
                 showAlert('Please enter the captured JWT token before continuing.');
                 return;
             }
-            validate('{{ route('dashboard.revocation-latency.validate.token') }}', { token: value }, 'token');
+            validate('{{ route('dashboard.attack-success-rate.test', ['type' => 'token']) }}', { credential: value }, 'token');
         });
 
         document.getElementById('reset-attack-boxes-btn').addEventListener('click', async function () {
             sessionInput.value = '';
             tokenInput.value = '';
 
-            if (sessionVictimStatus) sessionVictimStatus.textContent = '—';
-            if (sessionVictimSession) sessionVictimSession.textContent = '—';
-            if (sessionAuthMethod) sessionAuthMethod.textContent = '—';
-            if (sessionPhishTime) sessionPhishTime.textContent = '—';
-            if (tokenVictimStatus) tokenVictimStatus.textContent = '—';
-            if (tokenVictimToken) tokenVictimToken.textContent = '—';
-            if (tokenAuthMethod) tokenAuthMethod.textContent = '—';
-            if (tokenPhishTime) tokenPhishTime.textContent = '—';
-
+            document.getElementById('session-victim-status').textContent = '—';
+            document.getElementById('session-victim-session').textContent = '—';
+            document.getElementById('session-phish-time').textContent = '—';
+            document.getElementById('token-victim-status').textContent = '—';
+            document.getElementById('token-victim-token').textContent = '—';
+            document.getElementById('token-phish-time').textContent = '—';
             hideAlert();
 
             try {
@@ -317,9 +325,13 @@
                     headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
                 });
             } catch (error) {
-                showAlert('The page was reset, but captured credentials could not be cleared.');
+                showAlert('The attack cards could not be reset.');
             }
         });
+
+        if (state.session.usersTested || state.token.usersTested) {
+            updateTable();
+        }
     });
 </script>
 @endsection

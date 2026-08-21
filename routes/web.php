@@ -413,6 +413,107 @@ Route::post('/dashboard/revocation-latency/validate/token', function (Request $r
     ]);
 })->name('dashboard.revocation-latency.validate.token');
 
+Route::post('/dashboard/attack-success-rate/test/{type}', function (Request $request, string $type) {
+    if (! in_array($type, ['session', 'token'], true)) {
+        return response()->json(['message' => 'Unsupported authentication type.'], 422);
+    }
+
+    $credential = trim((string) $request->input('credential', ''));
+
+    if ($credential === '') {
+        return response()->json(['message' => 'A captured credential is required.'], 422);
+    }
+
+    $isValid = false;
+    $victimId = null;
+    $victimName = null;
+    $victimEmail = null;
+
+    if ($type === 'session') {
+        $session = DB::table('sessions')->where('id', $credential)->first();
+        $isValid = (bool) ($session && $session->last_activity >= (time() - (config('session.lifetime') * 60)));
+
+        $phishMetric = ExperimentMetric::where('action', 'link_clicked')
+            ->where('victim_authentication_type', 'session')
+            ->where('victim_session_id', $credential)
+            ->latest('created_at')
+            ->first();
+
+        $victimId = $session?->user_id ?? $phishMetric?->victim_id;
+        $victimName = $phishMetric?->victim_name;
+        $victimEmail = $phishMetric?->victim_email;
+    } else {
+        $payload = JwtHelper::decodePayload($credential);
+        $isValid = $payload !== null && ! JwtHelper::isExpired($credential) && JwtHelper::verifySignature($credential);
+        $tokenUser = User::where('api_token', $credential)->first();
+        $phishMetric = ExperimentMetric::where('action', 'link_clicked')
+            ->where('victim_authentication_type', 'token')
+            ->where('victim_token', $credential)
+            ->latest('created_at')
+            ->first();
+
+        $victimId = $payload['sub'] ?? $tokenUser?->id ?? $phishMetric?->victim_id;
+        $victimName = $phishMetric?->victim_name ?? $tokenUser?->name;
+        $victimEmail = $phishMetric?->victim_email ?? $tokenUser?->email;
+    }
+
+    if (! $victimId) {
+        return response()->json([
+            'valid' => $isValid,
+            'recorded' => false,
+            'message' => 'The captured credential could not be linked to a user.',
+        ], 422);
+    }
+
+    $metric = ExperimentMetric::where('action', 'attack_success_rate_test')
+        ->where('victim_authentication_type', $type)
+        ->where('victim_id', (int) $victimId)
+        ->latest('created_at')
+        ->first();
+
+    $metricData = [
+        'auth_type' => $type,
+        'action' => 'attack_success_rate_test',
+        'method' => 'POST',
+        'path' => $request->path(),
+        'success' => $isValid,
+        'victim_id' => (int) $victimId,
+        'victim_name' => $victimName,
+        'victim_email' => $victimEmail,
+        'victim_authentication_type' => $type,
+    ];
+
+    if ($metric) {
+        $metric->update($metricData);
+    } else {
+        ExperimentMetric::create($metricData);
+    }
+
+    $metrics = ExperimentMetric::where('action', 'attack_success_rate_test')
+        ->where('victim_authentication_type', $type)
+        ->select('victim_id', 'success')
+        ->get();
+
+    $usersTested = $metrics->pluck('victim_id')->unique()->count();
+    $successes = $metrics->where('success', true)->count();
+
+    return response()->json([
+        'valid' => $isValid,
+        'recorded' => true,
+        'victim_id' => (int) $victimId,
+        'users_tested' => $usersTested,
+        'successes' => $successes,
+        'failed' => $metrics->count() - $successes,
+        'success_rate' => $metrics->count() ? round(($successes / $metrics->count()) * 100) : 0,
+    ]);
+})->name('dashboard.attack-success-rate.test');
+
+Route::post('/dashboard/attack-success-rate/reset', function () {
+    ExperimentMetric::where('action', 'attack_success_rate_test')->delete();
+
+    return response()->json(['success' => true]);
+})->name('dashboard.attack-success-rate.reset');
+
 Route::post('/dashboard/data-exposure-risk/analyze', function (Request $request, CredentialExposureAnalyzer $analyzer) {
     $validated = $request->validate([
         'session_id' => 'nullable|string|min:5',

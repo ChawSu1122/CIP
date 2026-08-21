@@ -161,7 +161,7 @@
 
             <ul class="menu">
                 <li>
-                    <a href="/dashboard/revocation-latency" class="menu-item {{ request()->is('dashboard/revocation-latency') ? 'active' : '' }}">Revocation Latency & Attack Success Rate</a>
+                    <a href="/dashboard/revocation-latency" class="menu-item {{ request()->is('dashboard/revocation-latency') ? 'active' : '' }}">Revocation Latency</a>
                 </li>
                 <li>
                     <a href="/dashboard/attack-success-rate" class="menu-item {{ request()->is('dashboard/attack-success-rate') ? 'active' : '' }}">Attack Success Rate</a>
