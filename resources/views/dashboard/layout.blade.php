@@ -164,6 +164,9 @@
                     <a href="/dashboard/revocation-latency" class="menu-item {{ request()->is('dashboard/revocation-latency') ? 'active' : '' }}">Revocation Latency & Attack Success Rate</a>
                 </li>
                 <li>
+                    <a href="/dashboard/attack-success-rate" class="menu-item {{ request()->is('dashboard/attack-success-rate') ? 'active' : '' }}">Attack Success Rate</a>
+                </li>
+                <li>
                     <a href="/dashboard/data-exposure-risk" class="menu-item {{ request()->is('dashboard/data-exposure-risk') ? 'active' : '' }}">Data Exposure Risk</a>
                 </li>
             </ul>

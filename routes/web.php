@@ -153,6 +153,14 @@ Route::middleware(['auth'])->group(function () {
         return view('dashboard.revocation-latency');
     })->name('dashboard.revocation-latency');
 
+    Route::get('/dashboard/attack-success-rate', function () {
+        if (Auth::user()->role !== 'analysis') {
+            abort(403, 'Access denied. Only analysis users can manage the Security Testing Dashboard.');
+        }
+
+        return view('dashboard.attack-success-rate');
+    })->name('dashboard.attack-success-rate');
+
     Route::get('/dashboard/data-exposure-risk', function () {
         if (Auth::user()->role !== 'analysis') {
             abort(403, 'Access denied. Only analysis users can manage the Security Testing Dashboard.');

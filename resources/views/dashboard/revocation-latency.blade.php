@@ -228,13 +228,6 @@
     </div>
 </div>
 
-<div id="attack-success-comparison-result-card" class="card shadow-sm border-0 mt-4 d-none">
-    <div class="card-body">
-        <h3 class="h5 mb-2">Comparison Result</h3>
-        <p id="attack-success-comparison-result-text" class="mb-0 fw-bold text-success fs-4"></p>
-    </div>
-</div>
-
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
@@ -939,6 +932,10 @@
         }
 
         function updateAttackSuccessComparisonResult() {
+            if (!attackSuccessComparisonCard || !attackSuccessComparisonText) {
+                return;
+            }
+
             const sessionRate = getSuccessRate('session');
             const tokenRate = getSuccessRate('token');
 
