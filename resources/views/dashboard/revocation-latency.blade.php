@@ -171,10 +171,10 @@
     </div>
 </div>
 
-<h1 class="page-title mt-5 mb-3">Attack Success Rate Comparison</h1>
+<h1 class="page-title mt-5 mb-3" style="display: none;">Attack Success Rate Comparison</h1>
         <!-- <h2 class="h5 mb-1">Attack Success Rate Comparison</h2> -->
-        <p class="mb-0 small text-secondary">Each Unauthorized Access click in the Session Hijacking and Token Hijacking attacks above counts as one attempt. The outcome (Success / 200 OK or Access Denied / 401) is taken from the graph and reflected below.</p>
-<div id="attack-success-rate-section" class="card shadow-sm border-0 mt-4 d-none">
+        <p class="mb-0 small text-secondary" style="display: none;">Each Unauthorized Access click in the Session Hijacking and Token Hijacking attacks above counts as one attempt. The outcome (Success / 200 OK or Access Denied / 401) is taken from the graph and reflected below.</p>
+<div id="attack-success-rate-section" class="card shadow-sm border-0 mt-4 d-none" style="display: none;">
     <div class="card-header bg-white border-0">
         <!-- <h1 class="page-title mb-1">Attack Success Rate Comparison</h1> -->
         <!-- <h2 class="h5 mb-1">Attack Success Rate Comparison</h2> -->

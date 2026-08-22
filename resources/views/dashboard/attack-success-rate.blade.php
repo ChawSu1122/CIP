@@ -48,7 +48,8 @@
                 </li>
                 <li class="list-group-item py-3 d-flex justify-content-between align-items-center gap-3">
                     <span class="text-secondary">Authentication Method</span>
-                    <span class="fw-semibold">Session-Based</span>
+                    {{-- <span class="fw-semibold">Session-Based</span> --}}
+                    <span class="fw-semibold">@if($sessionPhish) Session-Based @else — @endif</span>
                 </li>
                 <li class="list-group-item py-3 d-flex justify-content-between align-items-center gap-3">
                     <span class="text-secondary">Time</span>
@@ -80,7 +81,8 @@
                 </li>
                 <li class="list-group-item py-3 d-flex justify-content-between align-items-center gap-3">
                     <span class="text-secondary">Authentication Method</span>
-                    <span class="fw-semibold">Token-Based</span>
+                    {{-- <span class="fw-semibold">Token-Based</span> --}}
+                    <span class="fw-semibold">@if($tokenPhish) Token-Based @else — @endif</span>
                 </li>
                 <li class="list-group-item py-3 d-flex justify-content-between align-items-center gap-3">
                     <span class="text-secondary">Time</span>
@@ -98,6 +100,10 @@
 </div>
 
 <div id="attack-alert" class="alert alert-warning d-none mt-4" role="alert"></div>
+
+<div class="d-flex justify-content-end mt-4">
+    <button id="reset-asr-btn" type="button" class="btn btn-outline-secondary btn-sm">Reset</button>
+</div>
 
 <div id="attack-success-rate-section" class="card shadow-sm border-0 mt-4 d-none">
     <div class="card-header bg-white border-0">
@@ -317,7 +323,6 @@
             document.getElementById('token-victim-status').textContent = '—';
             document.getElementById('token-victim-token').textContent = '—';
             document.getElementById('token-phish-time').textContent = '—';
-            hideAlert();
 
             try {
                 await fetch('{{ route('dashboard.revocation-latency.reset-captured-credentials') }}', {
@@ -326,6 +331,36 @@
                 });
             } catch (error) {
                 showAlert('The attack cards could not be reset.');
+            }
+
+            hideAlert();
+        });
+
+        document.getElementById('reset-asr-btn').addEventListener('click', async function () {
+            try {
+                const response = await fetch('{{ route('dashboard.attack-success-rate.reset') }}', {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
+                });
+
+                if (!response.ok) {
+                    showAlert('The attack success rate results could not be reset.');
+                    return;
+                }
+
+                state.session = { usersTested: 0, successes: 0, failed: 0 };
+                state.token = { usersTested: 0, successes: 0, failed: 0 };
+                section.classList.add('d-none');
+                comparisonCard.classList.add('d-none');
+
+                if (chart) {
+                    chart.data.datasets[0].data = [0, 0];
+                    chart.update();
+                }
+
+                hideAlert();
+            } catch (error) {
+                showAlert('The attack success rate results could not be reset.');
             }
         });
 
