@@ -26,7 +26,7 @@
 
 <div class="d-flex justify-content-between align-items-start align-items-lg-center flex-wrap gap-3 mb-3">
     <div>
-        <h1 class="page-title">Attack Success Rate</h1>
+        <h1 class="page-title">Attack Success Rate After Logout</h1>
     </div>
     <button id="reset-attack-boxes-btn" type="button" class="btn btn-outline-secondary btn-sm">Reset</button>
 </div>
