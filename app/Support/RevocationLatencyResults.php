@@ -87,37 +87,69 @@ class RevocationLatencyResults
             ->get();
 
         $groups = [];
+        $legacySession = [];
+        $legacyToken = [];
 
         foreach ($rows as $row) {
-            $key = $row->comparison_id !== null && $row->comparison_id !== ''
-                ? $row->comparison_id
-                : 'legacy:' . $row->victim_id . ':' . $row->victim_authentication_type;
+            $comparisonId = $row->comparison_id;
 
-            if (! isset($groups[$key])) {
-                $groups[$key] = [
-                    'comparison_id' => $key,
-                    'victim_id' => $row->victim_id,
-                    'session_victim_name' => null,
-                    'token_victim_name' => null,
-                    'order' => $row->created_at,
-                    'session_rl_seconds' => null,
-                    'token_rl_seconds' => null,
-                ];
+            if ($comparisonId !== null && $comparisonId !== '') {
+                if (! isset($groups[$comparisonId])) {
+                    $groups[$comparisonId] = [
+                        'comparison_id' => $comparisonId,
+                        'victim_id' => $row->victim_id,
+                        'session_victim_name' => null,
+                        'token_victim_name' => null,
+                        'order' => $row->created_at,
+                        'session_rl_seconds' => null,
+                        'token_rl_seconds' => null,
+                    ];
+                }
+
+                if ($row->victim_authentication_type === 'session') {
+                    $groups[$comparisonId]['session_rl_seconds'] = $row->duration_ms / 1000;
+
+                    if ($row->victim_name) {
+                        $groups[$comparisonId]['session_victim_name'] = $row->victim_name;
+                    }
+                } elseif ($row->victim_authentication_type === 'token') {
+                    $groups[$comparisonId]['token_rl_seconds'] = $row->duration_ms / 1000;
+
+                    if ($row->victim_name) {
+                        $groups[$comparisonId]['token_victim_name'] = $row->victim_name;
+                    }
+                }
+
+                continue;
             }
 
             if ($row->victim_authentication_type === 'session') {
-                $groups[$key]['session_rl_seconds'] = $row->duration_ms / 1000;
-
-                if ($row->victim_name) {
-                    $groups[$key]['session_victim_name'] = $row->victim_name;
-                }
+                $legacySession[] = $row;
             } elseif ($row->victim_authentication_type === 'token') {
-                $groups[$key]['token_rl_seconds'] = $row->duration_ms / 1000;
-
-                if ($row->victim_name) {
-                    $groups[$key]['token_victim_name'] = $row->victim_name;
-                }
+                $legacyToken[] = $row;
             }
+        }
+
+        $roundCount = max(count($legacySession), count($legacyToken));
+
+        for ($i = 0; $i < $roundCount; $i++) {
+            $session = $legacySession[$i] ?? null;
+            $token = $legacyToken[$i] ?? null;
+            $key = 'legacy-round:' . ($i + 1);
+
+            $groups[$key] = [
+                'comparison_id' => $key,
+                'victim_id' => $session?->victim_id ?? $token?->victim_id,
+                'session_victim_name' => $session?->victim_name,
+                'token_victim_name' => $token?->victim_name,
+                'order' => $session
+                    ? ($token
+                        ? ($session->created_at->lt($token->created_at) ? $session->created_at : $token->created_at)
+                        : $session->created_at)
+                    : $token->created_at,
+                'session_rl_seconds' => $session ? $session->duration_ms / 1000 : null,
+                'token_rl_seconds' => $token ? $token->duration_ms / 1000 : null,
+            ];
         }
 
         $comparisons = array_values($groups);
