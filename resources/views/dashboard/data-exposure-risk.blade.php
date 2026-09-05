@@ -148,29 +148,13 @@
             <p class="mb-0 small text-secondary">Compares exposed identity fields embedded in the captured session ID versus claims decoded from the captured JWT token.</p>
         </div>
         <div class="card-body">
-            <div style="position: relative; height: 320px;">
-                <canvas id="exposureRiskChart"></canvas>
-            </div>
-            <div id="chart-legend" class="row g-3 mt-3 d-none">
-                <div class="col-md-6">
-                    <div class="border rounded p-3 h-100">
-                        <p class="mb-1 fw-semibold"><span class="d-inline-block rounded me-2" style="width: 12px; height: 12px; background: #2563eb;"></span>Session-Based</p>
-                        <p class="mb-0 small text-secondary" id="session-chart-detail">Run the session test to calculate exposed fields from the captured session ID.</p>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="border rounded p-3 h-100">
-                        <p class="mb-1 fw-semibold"><span class="d-inline-block rounded me-2" style="width: 12px; height: 12px; background: #dc3545;"></span>Token-Based</p>
-                        <p class="mb-0 small text-secondary" id="token-chart-detail">Run the token test to decode the JWT payload and count exposed claims.</p>
-                    </div>
-                </div>
-            </div>
+            <div id="dataex-comparison-cards" class="row g-4"></div>
         </div>
     </div>
 
     <div id="exposure-alert" class="alert alert-warning d-none mt-4" role="alert"></div>
 
-    <div class="row row-cols-1 row-cols-lg-2 gx-4 gy-4 mt-4">
+    <div class="row row-cols-1 row-cols-lg-2 gx-4 gy-4 mt-4 d-none">
         <div class="col">
             <div class="card shadow-sm border-0">
                 <div class="card-body">
@@ -219,6 +203,19 @@
         </div>
     </div>
 
+    <div id="dataex-overall-chart-card" class="card shadow-sm border-0 mt-4 d-none">
+        <div class="card-header bg-white border-0">
+            <h3 class="h6 mb-1">Overall Comparison Result</h3>
+            <p class="mb-0 small text-secondary">Average Session-Based and Token-Based Data Exposure Risk across all comparison results stored so far.</p>
+        </div>
+        <div class="card-body">
+            <div style="position: relative; height: 320px;">
+                <canvas id="dataexOverallChart"></canvas>
+            </div>
+            <p class="mb-0 mt-3 small" id="dataex-overall-summary"></p>
+        </div>
+    </div>
+
     {{-- <div class="card shadow-sm border-0 mt-4">
         <div class="card-body">
             <h2 class="h5 mb-2">Comparison Summary</h2>
@@ -236,11 +233,15 @@
         const exposureAlert = document.getElementById('exposure-alert');
         const analyzeUrl = "{{ route('dashboard.data-exposure-risk.analyze') }}";
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        const chartCanvas = document.getElementById('exposureRiskChart');
-        const chartLegend = document.getElementById('chart-legend');
         const comparisonResultCard = document.getElementById('comparison-result-card');
         const comparisonResultText = document.getElementById('comparison-result-text');
-        let exposureChart = null;
+        const comparisonsUrl = "{{ route('dashboard.data-exposure-risk.comparisons') }}";
+        const dataexComparisonCardsContainer = document.getElementById('dataex-comparison-cards');
+        const dataexOverallChartCard = document.getElementById('dataex-overall-chart-card');
+        const dataexOverallCanvas = document.getElementById('dataexOverallChart');
+        const dataexOverallSummary = document.getElementById('dataex-overall-summary');
+        const dataexComparisonCharts = new Map();
+        let dataexOverallChart = null;
         const chartState = {
             sessionCount: null,
             tokenCount: null,
@@ -318,25 +319,145 @@
             return fields.join(', ');
         }
 
-        function renderExposureChart() {
-            const labels = ['Session-Based', 'Token-Based'];
-            const values = [
-                chartState.sessionCount ?? 0,
-                chartState.tokenCount ?? 0,
-            ];
-            const colors = ['#2563eb', '#dc3545'];
-            const maxValue = Math.max(6, ...values, 1);
+        function dataexDomId(value) {
+            return String(value).replace(/[^a-zA-Z0-9_-]/g, '_');
+        }
 
-            if (!exposureChart) {
-                exposureChart = new Chart(chartCanvas.getContext('2d'), {
+        function renderDataExposureComparisonCard(comparison, index) {
+            const safeId = dataexDomId(comparison.comparison_id);
+            const cardId = `dataex-cmp-card-${safeId}`;
+            const chartId = `dataex-cmp-chart-${safeId}`;
+            const summaryId = `dataex-cmp-summary-${safeId}`;
+            let wrapper = document.getElementById(cardId);
+
+            if (!wrapper) {
+                wrapper = document.createElement('div');
+                wrapper.id = cardId;
+                wrapper.className = 'col-12 col-lg-6';
+                wrapper.innerHTML = `
+                    <div class="card shadow-sm border-0 h-100">
+                        <div class="card-header bg-white border-0">
+                            <h3 class="h6 mb-1">Comparison Result ${index + 1}</h3>
+                            <p class="mb-0 small text-secondary">Session-based: ${comparison.session_victim_name || '—'} &nbsp;•&nbsp; Token-based: ${comparison.token_victim_name || '—'}</p>
+                        </div>
+                        <div class="card-body">
+                            <div style="position: relative; height: 260px;">
+                                <canvas id="${chartId}"></canvas>
+                            </div>
+                            <p class="mb-0 mt-3 small" id="${summaryId}"></p>
+                        </div>
+                    </div>
+                `;
+                dataexComparisonCardsContainer.appendChild(wrapper);
+            }
+
+            const canvas = document.getElementById(chartId);
+            const summary = document.getElementById(summaryId);
+            const values = [
+                comparison.session_count ?? null,
+                comparison.token_count ?? null,
+            ];
+
+            const existingChart = dataexComparisonCharts.get(comparison.comparison_id);
+            if (existingChart) {
+                existingChart.data.datasets[0].data = values;
+                existingChart.update();
+            } else if (canvas) {
+                dataexComparisonCharts.set(comparison.comparison_id, new Chart(canvas.getContext('2d'), {
                     type: 'bar',
                     plugins: [valueLabelPlugin],
                     data: {
-                        labels,
+                        labels: ['Session-Based', 'Token-Based'],
                         datasets: [{
                             label: 'Exposed fields',
                             data: values,
-                            backgroundColor: colors,
+                            backgroundColor: ['#2563eb', '#dc3545'],
+                            borderRadius: 4,
+                            maxBarThickness: 120,
+                        }],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                        },
+                        scales: {
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Authentication Method',
+                                },
+                            },
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    stepSize: 1,
+                                    precision: 0,
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Number of Exposed Fields (Counts)',
+                                },
+                            },
+                        },
+                    },
+                }));
+            }
+
+            if (summary) {
+                const sessionCount = comparison.session_count === null ? 'Pending' : `${comparison.session_count} field${comparison.session_count === 1 ? '' : 's'}`;
+                const tokenCount = comparison.token_count === null ? 'Pending' : `${comparison.token_count} field${comparison.token_count === 1 ? '' : 's'}`;
+                summary.innerHTML = `
+                    <strong class="text-primary">Session-Based:</strong> ${sessionCount}<br>
+                    <strong class="text-danger">Token-Based:</strong> ${tokenCount}
+                `;
+            }
+        }
+
+        function formatDataexAverage(value) {
+            if (value === null || value === undefined) {
+                return 'Pending';
+            }
+
+            const rounded = Math.round(Number(value) * 100) / 100;
+            return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+        }
+
+        function renderDataExposureOverallChart(overall) {
+            if (!overall || !dataexOverallChartCard || !dataexOverallCanvas) {
+                if (dataexOverallChartCard) {
+                    dataexOverallChartCard.classList.add('d-none');
+                }
+                return;
+            }
+
+            const values = [
+                overall.session_average ?? null,
+                overall.token_average ?? null,
+            ];
+
+            const hasAnyValue = values.some(function (value) {
+                return value !== null && value !== undefined;
+            });
+
+            if (!hasAnyValue) {
+                dataexOverallChartCard.classList.add('d-none');
+                return;
+            }
+
+            dataexOverallChartCard.classList.remove('d-none');
+
+            if (!dataexOverallChart) {
+                dataexOverallChart = new Chart(dataexOverallCanvas.getContext('2d'), {
+                    type: 'bar',
+                    plugins: [valueLabelPlugin],
+                    data: {
+                        labels: ['Overall Session-Based', 'Overall Token-Based'],
+                        datasets: [{
+                            label: 'Average Exposed Fields',
+                            data: values,
+                            backgroundColor: ['#2563eb', '#dc3545'],
                             borderRadius: 4,
                             maxBarThickness: 120,
                         }],
@@ -349,7 +470,7 @@
                             tooltip: {
                                 callbacks: {
                                     label: function (context) {
-                                        return `Exposed fields: ${context.parsed.y}`;
+                                        return `Average exposed fields: ${formatDataexAverage(context.parsed.y)}`;
                                     },
                                 },
                             },
@@ -363,27 +484,52 @@
                             },
                             y: {
                                 beginAtZero: true,
-                                suggestedMax: maxValue,
                                 ticks: {
-                                    stepSize: 1,
                                     precision: 0,
                                 },
                                 title: {
                                     display: true,
-                                    text: 'Number of Exposed Fields (Counts)',
+                                    text: 'Average Number of Exposed Fields (Counts)',
                                 },
                             },
                         },
                     },
                 });
             } else {
-                exposureChart.data.datasets[0].data = values;
-                exposureChart.options.scales.y.suggestedMax = maxValue;
-                exposureChart.update();
+                dataexOverallChart.data.datasets[0].data = values;
+                dataexOverallChart.update();
             }
 
-            if (chartState.sessionCount !== null || chartState.tokenCount !== null) {
-                chartLegend.classList.remove('d-none');
+            if (dataexOverallSummary) {
+                const sessionLabel = overall.session_average !== null && overall.session_average !== undefined
+                    ? `${formatDataexAverage(overall.session_average)} fields`
+                    : 'Pending';
+                const tokenLabel = overall.token_average !== null && overall.token_average !== undefined
+                    ? `${formatDataexAverage(overall.token_average)} fields`
+                    : 'Pending';
+
+                dataexOverallSummary.innerHTML = `
+                    <strong class="text-primary">Overall Session-Based:</strong> ${sessionLabel}
+                    (${overall.session_count ?? 0} result${(overall.session_count ?? 0) === 1 ? '' : 's'})<br>
+                    <strong class="text-danger">Overall Token-Based:</strong> ${tokenLabel}
+                    (${overall.token_count ?? 0} result${(overall.token_count ?? 0) === 1 ? '' : 's'})
+                `;
+            }
+        }
+
+        async function refreshDataExposureResults() {
+            try {
+                const response = await fetch(comparisonsUrl, {
+                    headers: { Accept: 'application/json' },
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    (data.comparisons || []).forEach(renderDataExposureComparisonCard);
+                    renderDataExposureOverallChart(data.overall);
+                }
+            } catch (error) {
+                console.error('Unable to refresh data exposure risk comparison results.', error);
             }
         }
 
@@ -406,8 +552,11 @@
             document.getElementById('session-id-length').textContent = sessionData?.session_id_length ?? '—';
 
             if (sessionData?.analyzed) {
-                document.getElementById('session-chart-detail').textContent =
-                    `IES = ${sessionData.exposed_field_count} (${formatFieldList(sessionData.exposed_fields)})`;
+                const detailEl = document.getElementById('session-chart-detail');
+                if (detailEl) {
+                    detailEl.textContent =
+                        `IES = ${sessionData.exposed_field_count} (${formatFieldList(sessionData.exposed_fields)})`;
+                }
             }
         }
 
@@ -437,8 +586,11 @@
             document.getElementById('token-claim-list').innerHTML = formatClaimDetails(tokenData?.claim_details);
 
             if (tokenData?.analyzed) {
-                document.getElementById('token-chart-detail').textContent =
-                    `IES = ${tokenData.exposed_field_count} (${formatClaimSummary(tokenData.claim_details)})`;
+                const detailEl = document.getElementById('token-chart-detail');
+                if (detailEl) {
+                    detailEl.textContent =
+                        `IES = ${tokenData.exposed_field_count} (${formatClaimSummary(tokenData.claim_details)})`;
+                }
             }
         }
 
@@ -485,8 +637,8 @@
             chartState.sessionCount = data.session.exposed_field_count;
             chartState.sessionFields = data.session.exposed_fields || [];
             updateSessionSummary(data.session);
-            renderExposureChart();
             updateComparisonResult();
+            refreshDataExposureResults();
         });
 
         analyzeTokenButton.addEventListener('click', async () => {
@@ -505,11 +657,11 @@
             chartState.tokenCount = data.token.exposed_field_count;
             chartState.tokenFields = data.token.exposed_fields || [];
             updateTokenSummary(data.token);
-            renderExposureChart();
             updateComparisonResult();
+            refreshDataExposureResults();
         });
 
-        renderExposureChart();
+        refreshDataExposureResults();
         updateComparisonResult();
     });
 </script>

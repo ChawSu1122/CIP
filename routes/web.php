@@ -16,6 +16,7 @@ use App\Support\JwtHelper;
 use App\Support\RevocationLatencyResults;
 use App\Support\RevocationLatencyStore;
 use App\Support\AttackSuccessRateResults;
+use App\Support\DataExposureRiskResults;
 use App\Services\CredentialExposureAnalyzer;
 use Illuminate\Support\Carbon;
 
@@ -592,11 +593,50 @@ Route::post('/dashboard/data-exposure-risk/analyze', function (Request $request,
     $sessionResult = null;
     if (! empty($validated['session_id'])) {
         $sessionResult = $analyzer->analyzeSession($validated['session_id']);
+
+        $sessionUser = $sessionResult['user_id'] ? User::find($sessionResult['user_id']) : null;
+        $sessionPhish = ExperimentMetric::where('action', 'link_clicked')
+            ->where('victim_authentication_type', 'session')
+            ->where('victim_session_id', $validated['session_id'])
+            ->latest('created_at')
+            ->first();
+
+        DataExposureRiskResults::record(
+            'session',
+            $validated['session_id'],
+            $sessionResult['exposed_field_count'],
+            $sessionResult['user_id'] ?? $sessionPhish?->victim_id,
+            $sessionPhish?->victim_name
+                ?? ($sessionUser?->name ?: null),
+            $sessionPhish?->victim_email
+                ?? ($sessionUser?->email ?: null),
+            (bool) $sessionResult['found']
+        );
     }
 
     $tokenResult = null;
     if (! empty($validated['token'])) {
         $tokenResult = $analyzer->analyzeToken($validated['token']);
+
+        $tokenUser = $tokenResult['user_id'] ? User::find($tokenResult['user_id']) : null;
+        $tokenPhish = ExperimentMetric::where('action', 'link_clicked')
+            ->where('victim_authentication_type', 'token')
+            ->where('victim_token', $validated['token'])
+            ->latest('created_at')
+            ->first();
+
+        DataExposureRiskResults::record(
+            'token',
+            $validated['token'],
+            $tokenResult['exposed_field_count'],
+            $tokenResult['user_id'] ?? $tokenPhish?->victim_id,
+            $tokenPhish?->victim_name
+                ?? ($tokenUser?->name ?: null),
+            $tokenPhish?->victim_email
+                ?? ($tokenUser?->email ?: null)
+                ?? $tokenResult['user_email'],
+            (bool) $tokenResult['found']
+        );
     }
 
     return response()->json([
@@ -605,6 +645,14 @@ Route::post('/dashboard/data-exposure-risk/analyze', function (Request $request,
         'token' => $tokenResult,
     ]);
 })->name('dashboard.data-exposure-risk.analyze');
+
+Route::get('/dashboard/data-exposure-risk/comparisons', function () {
+    return response()->json([
+        'success' => true,
+        'comparisons' => DataExposureRiskResults::getComparisons(),
+        'overall' => DataExposureRiskResults::getOverall(),
+    ]);
+})->middleware('auth')->name('dashboard.data-exposure-risk.comparisons');
 
 Route::get('/comparison', [ThesisController::class, 'comparison'])->name('comparison.dashboard');
 Route::view('/presentation-summary', 'presentation-summary')->name('presentation.summary');
