@@ -140,8 +140,20 @@
                 </tbody>
             </table>
         </div>
-        <div style="position: relative; height: 300px;">
-            <canvas id="attackSuccessRateChart"></canvas>
+        <div>
+            <div id="asr-comparison-cards" class="row g-4"></div>
+            <div id="asr-overall-chart-card" class="card shadow-sm border-0 mt-4 d-none">
+                <div class="card-header bg-white border-0">
+                    <h3 class="h6 mb-1">Overall Comparison Result</h3>
+                    <p class="mb-0 small text-secondary">Average Session-Based and Token-Based Attack Success Rate across all comparison results stored so far.</p>
+                </div>
+                <div class="card-body">
+                    <div style="position: relative; height: 300px;">
+                        <canvas id="asrOverallChart"></canvas>
+                    </div>
+                    <p class="mb-0 mt-3 small" id="asr-overall-summary"></p>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -177,7 +189,13 @@
                 failed: @json($tokenAsrMetrics->where('success', false)->count()),
             },
         };
-        let chart = null;
+        const comparisonsUrl = '{{ route('dashboard.attack-success-rate.comparisons') }}';
+        const asrComparisonCardsContainer = document.getElementById('asr-comparison-cards');
+        const asrOverallChartCard = document.getElementById('asr-overall-chart-card');
+        const asrOverallCanvas = document.getElementById('asrOverallChart');
+        const asrOverallSummary = document.getElementById('asr-overall-summary');
+        const asrComparisonCharts = new Map();
+        let asrOverallChart = null;
 
         function showAlert(message) {
             alertBox.textContent = message;
@@ -227,17 +245,82 @@
             });
 
             section.classList.remove('d-none');
-            renderChart();
+            refreshAsrComparisonResults();
             updateComparison();
         }
 
-        function renderChart() {
-            const values = [rate('session') ?? 0, rate('token') ?? 0];
-            if (!chart) {
-                chart = new Chart(document.getElementById('attackSuccessRateChart').getContext('2d'), {
+        const asrValueLabelPlugin = {
+            id: 'asrValueLabel',
+            afterDatasetsDraw(chart) {
+                const { ctx } = chart;
+                ctx.save();
+                ctx.font = 'bold 12px Inter, system-ui, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+
+                chart.data.datasets.forEach(function (dataset, datasetIndex) {
+                    chart.getDatasetMeta(datasetIndex).data.forEach(function (bar, index) {
+                        const value = dataset.data[index];
+                        if (value === null || value === undefined) {
+                            return;
+                        }
+                        ctx.fillText(`${Math.round(value)}%`, bar.x, bar.y - 6);
+                    });
+                });
+
+                ctx.restore();
+            },
+        };
+
+        function asrDomId(value) {
+            return String(value).replace(/[^a-zA-Z0-9_-]/g, '_');
+        }
+
+        function renderAsrComparisonCard(comparison, index) {
+            const safeId = asrDomId(comparison.comparison_id);
+            const cardId = `asr-cmp-card-${safeId}`;
+            const chartId = `asr-cmp-chart-${safeId}`;
+            const summaryId = `asr-cmp-summary-${safeId}`;
+            let wrapper = document.getElementById(cardId);
+
+            if (!wrapper) {
+                wrapper = document.createElement('div');
+                wrapper.id = cardId;
+                wrapper.className = 'col-12 col-lg-6';
+                wrapper.innerHTML = `
+                    <div class="card shadow-sm border-0 h-100">
+                        <div class="card-header bg-white border-0">
+                            <h3 class="h6 mb-1">Comparison Result ${index + 1}</h3>
+                            <p class="mb-0 small text-secondary">Session-based: ${comparison.session_victim_name || '—'} &nbsp;•&nbsp; Token-based: ${comparison.token_victim_name || '—'}</p>
+                        </div>
+                        <div class="card-body">
+                            <div style="position: relative; height: 260px;">
+                                <canvas id="${chartId}"></canvas>
+                            </div>
+                            <p class="mb-0 mt-3 small" id="${summaryId}"></p>
+                        </div>
+                    </div>
+                `;
+                asrComparisonCardsContainer.appendChild(wrapper);
+            }
+
+            const canvas = document.getElementById(chartId);
+            const summary = document.getElementById(summaryId);
+            const values = [
+                comparison.session_rate ?? null,
+                comparison.token_rate ?? null,
+            ];
+
+            const existingChart = asrComparisonCharts.get(comparison.comparison_id);
+            if (existingChart) {
+                existingChart.data.datasets[0].data = values;
+                existingChart.update();
+            } else if (canvas) {
+                asrComparisonCharts.set(comparison.comparison_id, new Chart(canvas.getContext('2d'), {
                     type: 'bar',
+                    plugins: [asrValueLabelPlugin],
                     data: {
-                        labels: ['Session Hijacking', 'Token Hijacking'],
+                        labels: ['Session-Based', 'Token-Based'],
                         datasets: [{
                             label: 'Attack Success Rate (%)',
                             data: values,
@@ -249,17 +332,126 @@
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        scales: {
-                            y: { beginAtZero: true, max: 100, ticks: { stepSize: 10, callback: value => `${value}%` } },
-                        },
                         plugins: { legend: { display: false } },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                ticks: { stepSize: 10, callback: value => `${value}%` },
+                            },
+                        },
                     },
-                });
+                }));
+            }
+
+            if (summary) {
+                const sessionRate = comparison.session_rate === null ? 'Pending' : `${comparison.session_rate}%`;
+                const tokenRate = comparison.token_rate === null ? 'Pending' : `${comparison.token_rate}%`;
+                summary.innerHTML = `
+                    <strong class="text-primary">Session-Based:</strong> ${sessionRate}<br>
+                    <strong class="text-danger">Token-Based:</strong> ${tokenRate}
+                `;
+            }
+        }
+
+        function renderAsrOverallChart(overall) {
+            if (!overall || !asrOverallChartCard || !asrOverallCanvas) {
+                if (asrOverallChartCard) {
+                    asrOverallChartCard.classList.add('d-none');
+                }
                 return;
             }
 
-            chart.data.datasets[0].data = values;
-            chart.update();
+            const values = [
+                overall.session_rate ?? null,
+                overall.token_rate ?? null,
+            ];
+
+            const hasAnyValue = values.some(function (value) {
+                return value !== null && value !== undefined;
+            });
+
+            if (!hasAnyValue) {
+                asrOverallChartCard.classList.add('d-none');
+                return;
+            }
+
+            asrOverallChartCard.classList.remove('d-none');
+
+            if (!asrOverallChart) {
+                asrOverallChart = new Chart(asrOverallCanvas.getContext('2d'), {
+                    type: 'bar',
+                    plugins: [asrValueLabelPlugin],
+                    data: {
+                        labels: ['Overall Session-Based', 'Overall Token-Based'],
+                        datasets: [{
+                            label: 'Overall Attack Success Rate (%)',
+                            data: values,
+                            backgroundColor: ['#2563eb', '#dc3545'],
+                            borderRadius: 4,
+                            maxBarThickness: 120,
+                        }],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                ticks: { stepSize: 10, callback: value => `${value}%` },
+                            },
+                        },
+                    },
+                });
+            } else {
+                asrOverallChart.data.datasets[0].data = values;
+                asrOverallChart.update();
+            }
+
+            if (asrOverallSummary) {
+                const sessionLabel = overall.session_rate !== null && overall.session_rate !== undefined
+                    ? `${overall.session_rate}%`
+                    : 'Pending';
+                const tokenLabel = overall.token_rate !== null && overall.token_rate !== undefined
+                    ? `${overall.token_rate}%`
+                    : 'Pending';
+
+                asrOverallSummary.innerHTML = `
+                    <strong class="text-primary">Overall Session-Based:</strong> ${sessionLabel}
+                    (${overall.session_count ?? 0} result${(overall.session_count ?? 0) === 1 ? '' : 's'})<br>
+                    <strong class="text-danger">Overall Token-Based:</strong> ${tokenLabel}
+                    (${overall.token_count ?? 0} result${(overall.token_count ?? 0) === 1 ? '' : 's'})
+                `;
+            }
+        }
+
+        function clearAsrComparisonCards() {
+            if (asrComparisonCardsContainer) {
+                asrComparisonCardsContainer.innerHTML = '';
+            }
+            asrComparisonCharts.clear();
+            asrOverallChart = null;
+            if (asrOverallChartCard) {
+                asrOverallChartCard.classList.add('d-none');
+            }
+        }
+
+        async function refreshAsrComparisonResults() {
+            try {
+                const response = await fetch(comparisonsUrl, {
+                    headers: { Accept: 'application/json' },
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    (data.comparisons || []).forEach(renderAsrComparisonCard);
+                    renderAsrOverallChart(data.overall);
+                }
+            } catch (error) {
+                console.error('Unable to refresh attack success rate comparison results.', error);
+            }
         }
 
         async function validate(url, payload, type) {
@@ -352,11 +544,8 @@
                 state.token = { usersTested: 0, successes: 0, failed: 0 };
                 section.classList.add('d-none');
                 comparisonCard.classList.add('d-none');
-
-                if (chart) {
-                    chart.data.datasets[0].data = [0, 0];
-                    chart.update();
-                }
+                clearAsrComparisonCards();
+                refreshAsrComparisonResults();
 
                 hideAlert();
             } catch (error) {

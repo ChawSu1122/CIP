@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Support\JwtHelper;
 use App\Support\RevocationLatencyResults;
 use App\Support\RevocationLatencyStore;
+use App\Support\AttackSuccessRateResults;
 use App\Services\CredentialExposureAnalyzer;
 use Illuminate\Support\Carbon;
 
@@ -567,6 +568,14 @@ Route::post('/dashboard/attack-success-rate/reset', function () {
 
     return response()->json(['success' => true]);
 })->name('dashboard.attack-success-rate.reset');
+
+Route::get('/dashboard/attack-success-rate/comparisons', function () {
+    return response()->json([
+        'success' => true,
+        'comparisons' => AttackSuccessRateResults::getComparisons(),
+        'overall' => AttackSuccessRateResults::getOverall(),
+    ]);
+})->middleware('auth')->name('dashboard.attack-success-rate.comparisons');
 
 Route::post('/dashboard/data-exposure-risk/analyze', function (Request $request, CredentialExposureAnalyzer $analyzer) {
     $validated = $request->validate([
