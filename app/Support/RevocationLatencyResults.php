@@ -170,6 +170,12 @@ class RevocationLatencyResults
                 'token_rl_minutes' => $comparison['token_rl_seconds'] !== null
                     ? round($comparison['token_rl_seconds'] / 60, 2)
                     : null,
+                'session_rl_seconds' => $comparison['session_rl_seconds'] !== null
+                    ? (int) round($comparison['session_rl_seconds'])
+                    : null,
+                'token_rl_seconds' => $comparison['token_rl_seconds'] !== null
+                    ? (int) round($comparison['token_rl_seconds'])
+                    : null,
             ];
         }, $comparisons);
     }
@@ -195,6 +201,12 @@ class RevocationLatencyResults
             'token_rl_minutes' => $tokenSeconds->isEmpty()
                 ? null
                 : round($tokenSeconds->avg() / 60, 2),
+            'session_rl_seconds' => $sessionSeconds->isEmpty()
+                ? null
+                : (int) round($sessionSeconds->avg()),
+            'token_rl_seconds' => $tokenSeconds->isEmpty()
+                ? null
+                : (int) round($tokenSeconds->avg()),
             'session_count' => $sessionRows->count(),
             'token_count' => $tokenRows->count(),
         ];

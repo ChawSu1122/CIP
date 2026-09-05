@@ -328,7 +328,10 @@
                         if (value === null || value === undefined) {
                             return;
                         }
-                        ctx.fillText(formatRlMinutesLabel(value), bar.x, bar.y - 6);
+                        const seconds = dataset._durationSeconds
+                            ? dataset._durationSeconds[index]
+                            : null;
+                        ctx.fillText(formatRlDurationLabel(seconds), bar.x, bar.y - 6);
                     });
                 });
 
@@ -336,22 +339,27 @@
             },
         };
 
-        function formatRlMinutesLabel(minutes) {
-            if (minutes === null || minutes === undefined) {
+        function formatRlDurationLabel(seconds) {
+            if (seconds === null || seconds === undefined) {
                 return '—';
             }
 
-            const rounded = Math.round(Number(minutes) * 100) / 100;
+            const total = Math.round(Number(seconds));
 
-            if (rounded === 0) {
-                return '0 min';
+            if (total < 60) {
+                return total === 1 ? '1 second' : `${total} seconds`;
             }
 
-            if (rounded < 1) {
-                return `${rounded} min`;
+            const minutes = Math.floor(total / 60);
+            const remaining = total % 60;
+
+            if (remaining === 0) {
+                return minutes === 1 ? '1 minute' : `${minutes} min`;
             }
 
-            return `${rounded.toFixed(rounded % 1 === 0 ? 0 : 1)} min`;
+            return remaining === 1
+                ? `${minutes} min 1 second`
+                : `${minutes} min ${remaining} seconds`;
         }
 
         function buildRlBarChartOptions(yTitle) {
@@ -363,7 +371,10 @@
                     tooltip: {
                         callbacks: {
                             label: function (context) {
-                                return `${context.label}: ${formatRlMinutesLabel(context.parsed.y)}`;
+                                const seconds = context.dataset._durationSeconds
+                                    ? context.dataset._durationSeconds[context.dataIndex]
+                                    : null;
+                                return `${context.label}: ${formatRlDurationLabel(seconds)}`;
                             },
                         },
                     },
@@ -380,7 +391,7 @@
                         },
                         ticks: {
                             callback: function (value) {
-                                return formatRlMinutesLabel(value);
+                                return Number.isInteger(value) ? `${value} min` : '';
                             },
                         },
                         grid: { color: '#e5e7eb' },
@@ -428,10 +439,15 @@
                 comparison.session_rl_minutes ?? null,
                 comparison.token_rl_minutes ?? null,
             ];
+            const durationSeconds = [
+                comparison.session_rl_seconds ?? null,
+                comparison.token_rl_seconds ?? null,
+            ];
 
             const existingChart = comparisonCharts.get(comparison.comparison_id);
             if (existingChart) {
                 existingChart.data.datasets[0].data = values;
+                existingChart.data.datasets[0]._durationSeconds = durationSeconds;
                 existingChart.update();
             } else if (canvas) {
                 comparisonCharts.set(comparison.comparison_id, new Chart(canvas.getContext('2d'), {
@@ -442,6 +458,7 @@
                         datasets: [{
                             label: 'Revocation Latency (minutes)',
                             data: values,
+                            _durationSeconds: durationSeconds,
                             backgroundColor: ['#2563eb', '#dc3545'],
                             borderRadius: 4,
                             maxBarThickness: 120,
@@ -453,8 +470,8 @@
 
             if (summary) {
                 summary.innerHTML = `
-                    <strong class="text-primary">Session-Based:</strong> ${formatRlMinutesLabel(comparison.session_rl_minutes)}<br>
-                    <strong class="text-danger">Token-Based:</strong> ${formatRlMinutesLabel(comparison.token_rl_minutes)}
+                    <strong class="text-primary">Session-Based:</strong> ${formatRlDurationLabel(comparison.session_rl_seconds)}<br>
+                    <strong class="text-danger">Token-Based:</strong> ${formatRlDurationLabel(comparison.token_rl_seconds)}
                 `;
             }
         }
@@ -489,6 +506,10 @@
                 overall.session_rl_minutes ?? null,
                 overall.token_rl_minutes ?? null,
             ];
+            const durationSeconds = [
+                overall.session_rl_seconds ?? null,
+                overall.token_rl_seconds ?? null,
+            ];
 
             const hasAnyValue = values.some(function (value) {
                 return value !== null && value !== undefined;
@@ -508,6 +529,7 @@
                         datasets: [{
                             label: 'Average Revocation Latency (minutes)',
                             data: values,
+                            _durationSeconds: durationSeconds,
                             backgroundColor: ['#2563eb', '#dc3545'],
                             borderRadius: 4,
                             maxBarThickness: 120,
@@ -517,15 +539,16 @@
                 });
             } else {
                 overallRlChart.data.datasets[0].data = values;
+                overallRlChart.data.datasets[0]._durationSeconds = durationSeconds;
                 overallRlChart.update();
             }
 
             if (overallRlSummary) {
-                const sessionLabel = overall.session_rl_minutes !== null && overall.session_rl_minutes !== undefined
-                    ? formatRlMinutesLabel(overall.session_rl_minutes)
+                const sessionLabel = overall.session_rl_seconds !== null && overall.session_rl_seconds !== undefined
+                    ? formatRlDurationLabel(overall.session_rl_seconds)
                     : 'Pending';
-                const tokenLabel = overall.token_rl_minutes !== null && overall.token_rl_minutes !== undefined
-                    ? formatRlMinutesLabel(overall.token_rl_minutes)
+                const tokenLabel = overall.token_rl_seconds !== null && overall.token_rl_seconds !== undefined
+                    ? formatRlDurationLabel(overall.token_rl_seconds)
                     : 'Pending';
 
                 overallRlSummary.innerHTML = `
