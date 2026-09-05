@@ -13,6 +13,7 @@ use App\Http\Controllers\ThesisController;
 use App\Http\Controllers\ReplayAttackController;
 use App\Models\User;
 use App\Support\JwtHelper;
+use App\Support\RevocationLatencyResults;
 use App\Support\RevocationLatencyStore;
 use App\Services\CredentialExposureAnalyzer;
 use Illuminate\Support\Carbon;
@@ -412,6 +413,59 @@ Route::post('/dashboard/revocation-latency/validate/token', function (Request $r
         'revocation_latency_seconds' => null,
     ]);
 })->name('dashboard.revocation-latency.validate.token');
+
+Route::post('/dashboard/revocation-latency/record-result', function (Request $request) {
+    $validated = $request->validate([
+        'comparison_id' => 'required|string|min:3|max:60',
+        'session_credential' => 'nullable|string',
+        'token_credential' => 'nullable|string',
+        'session_latency_seconds' => 'nullable|integer|min:0',
+        'token_latency_seconds' => 'nullable|integer|min:0',
+    ]);
+
+    $recorded = false;
+
+    if ($validated['session_latency_seconds'] !== null && ! empty($validated['session_credential'])) {
+        $recorded = RevocationLatencyResults::record(
+            'session',
+            trim($validated['session_credential']),
+            (int) $validated['session_latency_seconds'],
+            $validated['comparison_id']
+        ) !== null;
+    }
+
+    if ($validated['token_latency_seconds'] !== null && ! empty($validated['token_credential'])) {
+        $tokenRecorded = RevocationLatencyResults::record(
+            'token',
+            trim($validated['token_credential']),
+            (int) $validated['token_latency_seconds'],
+            $validated['comparison_id']
+        );
+        $recorded = $recorded || $tokenRecorded !== null;
+    }
+
+    if (! $recorded) {
+        return response()->json([
+            'success' => false,
+            'message' => 'The captured credentials could not be linked to a tested user.',
+        ], 422);
+    }
+
+    return response()->json([
+        'success' => true,
+        'recorded' => true,
+        'comparisons' => RevocationLatencyResults::getComparisons(),
+        'overall' => RevocationLatencyResults::getOverall(),
+    ]);
+})->middleware('auth')->name('dashboard.revocation-latency.record-result');
+
+Route::get('/dashboard/revocation-latency/test-results', function () {
+    return response()->json([
+        'success' => true,
+        'comparisons' => RevocationLatencyResults::getComparisons(),
+        'overall' => RevocationLatencyResults::getOverall(),
+    ]);
+})->middleware('auth')->name('dashboard.revocation-latency.test-results');
 
 Route::post('/dashboard/attack-success-rate/test/{type}', function (Request $request, string $type) {
     if (! in_array($type, ['session', 'token'], true)) {

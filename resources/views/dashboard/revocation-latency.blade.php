@@ -6,6 +6,7 @@
 
 @php
     use App\Models\ExperimentMetric;
+    use App\Support\RevocationLatencyResults;
 
     // Latest token-based phish event (if any)
     $tokenPhish = ExperimentMetric::where('action', 'link_clicked')
@@ -28,6 +29,8 @@
     $session_victim_session = $sessionPhish?->victim_session_id ?? '—';
     $session_phish_time = $sessionPhish?->created_at?->format('Y-m-d H:i:s') ?? '—';
     $session_phish_ts = $sessionPhish?->created_at?->valueOf() ?? null;
+
+    $overallRl = RevocationLatencyResults::getOverall();
 @endphp
 
 <div class="d-flex justify-content-between align-items-start align-items-lg-center flex-wrap gap-3 mb-3">
@@ -171,6 +174,12 @@
     </div>
 </div>
 
+<div id="rl-comparison-results-section" class="mt-4 d-none">
+    <h2 class="h5 mb-1">Comparison Results</h2>
+    <p class="small text-secondary mb-4">Each completed comparison result is kept as its own bar chart. Previous comparison results stay visible as new ones are added.</p>
+    <div id="rl-comparison-cards" class="row g-4"></div>
+</div>
+
 <h1 class="page-title mt-5 mb-3" style="display: none;">Attack Success Rate Comparison</h1>
         <!-- <h2 class="h5 mb-1">Attack Success Rate Comparison</h2> -->
         <p class="mb-0 small text-secondary" style="display: none;">Each Unauthorized Access click in the Session Hijacking and Token Hijacking attacks above counts as one attempt. The outcome (Success / 200 OK or Access Denied / 401) is taken from the graph and reflected below.</p>
@@ -228,6 +237,19 @@
     </div>
 </div>
 
+<div id="overall-rl-chart-card" class="card shadow-sm border-0 mt-5 {{ empty($overallRl) ? 'd-none' : '' }}">
+    <div class="card-header bg-white border-0">
+        <h3 class="h5 mb-1">Overall Comparison Result</h3>
+        <p class="mb-0 small text-secondary">Average Session-Based and Token-Based Revocation Latency across all completed comparison results stored so far.</p>
+    </div>
+    <div class="card-body">
+        <div style="position: relative; height: 320px;">
+            <canvas id="overallRlChart"></canvas>
+        </div>
+        <p class="mb-0 mt-3 small" id="overall-rl-summary"></p>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
@@ -259,6 +281,8 @@
         const validateTokenUrl = "{{ route('dashboard.revocation-latency.validate.token') }}";
         const resetCapturedCredentialsUrl = "{{ route('dashboard.revocation-latency.reset-captured-credentials') }}";
         const securityAlertUrl = "{{ route('dashboard.revocation-latency.security-alert') }}";
+        const recordResultUrl = "{{ route('dashboard.revocation-latency.record-result') }}";
+        const testResultsUrl = "{{ route('dashboard.revocation-latency.test-results') }}";
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         const xAxisMax = 6;
         const tokenTtlSeconds = 180;
@@ -278,6 +302,285 @@
         let tokenAccessInvalidMs = null;
         let chartStartMs = null;
         let lastTokenValidation = null;
+
+        const rlComparisonSection = document.getElementById('rl-comparison-results-section');
+        const rlComparisonCardsContainer = document.getElementById('rl-comparison-cards');
+        const comparisonCharts = new Map();
+        let comparisonResultPersisted = false;
+        let activeComparisonId = null;
+
+        let overallRlChart = null;
+        const overallRlChartCard = document.getElementById('overall-rl-chart-card');
+        const overallRlSummary = document.getElementById('overall-rl-summary');
+
+        const rlValueLabelPlugin = {
+            id: 'rlValueLabel',
+            afterDatasetsDraw(chart) {
+                const { ctx } = chart;
+                ctx.save();
+                ctx.font = 'bold 12px Inter, system-ui, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+
+                chart.data.datasets.forEach(function (dataset, datasetIndex) {
+                    chart.getDatasetMeta(datasetIndex).data.forEach(function (bar, index) {
+                        const value = dataset.data[index];
+                        if (value === null || value === undefined) {
+                            return;
+                        }
+                        ctx.fillText(formatRlMinutesLabel(value), bar.x, bar.y - 6);
+                    });
+                });
+
+                ctx.restore();
+            },
+        };
+
+        function formatRlMinutesLabel(minutes) {
+            if (minutes === null || minutes === undefined) {
+                return '—';
+            }
+
+            const rounded = Math.round(Number(minutes) * 100) / 100;
+
+            if (rounded === 0) {
+                return '0 min';
+            }
+
+            if (rounded < 1) {
+                return `${rounded} min`;
+            }
+
+            return `${rounded.toFixed(rounded % 1 === 0 ? 0 : 1)} min`;
+        }
+
+        function buildRlBarChartOptions(yTitle) {
+            return {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function (context) {
+                                return `${context.label}: ${formatRlMinutesLabel(context.parsed.y)}`;
+                            },
+                        },
+                    },
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                    },
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: yTitle,
+                        },
+                        ticks: {
+                            callback: function (value) {
+                                return formatRlMinutesLabel(value);
+                            },
+                        },
+                        grid: { color: '#e5e7eb' },
+                    },
+                },
+                animation: { duration: 250 },
+            };
+        }
+
+        function rlDomId(value) {
+            return String(value).replace(/[^a-zA-Z0-9_-]/g, '_');
+        }
+
+        function renderComparisonCard(comparison, index) {
+            const safeId = rlDomId(comparison.comparison_id);
+            const cardId = `rl-cmp-card-${safeId}`;
+            const chartId = `rl-cmp-chart-${safeId}`;
+            const summaryId = `rl-cmp-summary-${safeId}`;
+            let wrapper = document.getElementById(cardId);
+
+            if (!wrapper) {
+                wrapper = document.createElement('div');
+                wrapper.id = cardId;
+                wrapper.className = 'col-12 col-lg-6';
+                wrapper.innerHTML = `
+                    <div class="card shadow-sm border-0 h-100">
+                        <div class="card-header bg-white border-0">
+                            <h3 class="h6 mb-1">Comparison Result ${index + 1}</h3>
+                            <p class="mb-0 small text-secondary">Session-based: ${comparison.session_victim_name || '—'} &nbsp;•&nbsp; Token-based: ${comparison.token_victim_name || '—'}</p>
+                        </div>
+                        <div class="card-body">
+                            <div style="position: relative; height: 260px;">
+                                <canvas id="${chartId}"></canvas>
+                            </div>
+                            <p class="mb-0 mt-3 small" id="${summaryId}"></p>
+                        </div>
+                    </div>
+                `;
+                rlComparisonCardsContainer.appendChild(wrapper);
+            }
+
+            const canvas = document.getElementById(chartId);
+            const summary = document.getElementById(summaryId);
+            const values = [
+                comparison.session_rl_minutes ?? null,
+                comparison.token_rl_minutes ?? null,
+            ];
+
+            const existingChart = comparisonCharts.get(comparison.comparison_id);
+            if (existingChart) {
+                existingChart.data.datasets[0].data = values;
+                existingChart.update();
+            } else if (canvas) {
+                comparisonCharts.set(comparison.comparison_id, new Chart(canvas.getContext('2d'), {
+                    type: 'bar',
+                    plugins: [rlValueLabelPlugin],
+                    data: {
+                        labels: ['Session-Based', 'Token-Based'],
+                        datasets: [{
+                            label: 'Revocation Latency (minutes)',
+                            data: values,
+                            backgroundColor: ['#2563eb', '#dc3545'],
+                            borderRadius: 4,
+                            maxBarThickness: 120,
+                        }],
+                    },
+                    options: buildRlBarChartOptions('Revocation Latency (minutes)'),
+                }));
+            }
+
+            if (summary) {
+                summary.innerHTML = `
+                    <strong class="text-primary">Session-Based:</strong> ${formatRlMinutesLabel(comparison.session_rl_minutes)}<br>
+                    <strong class="text-danger">Token-Based:</strong> ${formatRlMinutesLabel(comparison.token_rl_minutes)}
+                `;
+            }
+        }
+
+        function renderComparisonCards(comparisons) {
+            if (!comparisons || comparisons.length === 0) {
+                if (rlComparisonSection) {
+                    rlComparisonSection.classList.add('d-none');
+                }
+                return;
+            }
+
+            if (rlComparisonSection) {
+                rlComparisonSection.classList.remove('d-none');
+            }
+
+            comparisons.forEach(renderComparisonCard);
+        }
+
+        function renderOverallRlChart(overall) {
+            if (!overall || !overallRlChartCard) {
+                return;
+            }
+
+            overallRlChartCard.classList.remove('d-none');
+            const canvas = document.getElementById('overallRlChart');
+            if (!canvas) {
+                return;
+            }
+
+            const values = [
+                overall.session_rl_minutes ?? null,
+                overall.token_rl_minutes ?? null,
+            ];
+
+            const hasAnyValue = values.some(function (value) {
+                return value !== null && value !== undefined;
+            });
+
+            if (!hasAnyValue) {
+                overallRlChartCard.classList.add('d-none');
+                return;
+            }
+
+            if (!overallRlChart) {
+                overallRlChart = new Chart(canvas.getContext('2d'), {
+                    type: 'bar',
+                    plugins: [rlValueLabelPlugin],
+                    data: {
+                        labels: ['Overall Session-Based', 'Overall Token-Based'],
+                        datasets: [{
+                            label: 'Average Revocation Latency (minutes)',
+                            data: values,
+                            backgroundColor: ['#2563eb', '#dc3545'],
+                            borderRadius: 4,
+                            maxBarThickness: 120,
+                        }],
+                    },
+                    options: buildRlBarChartOptions('Average Revocation Latency (minutes)'),
+                });
+            } else {
+                overallRlChart.data.datasets[0].data = values;
+                overallRlChart.update();
+            }
+
+            if (overallRlSummary) {
+                const sessionLabel = overall.session_rl_minutes !== null && overall.session_rl_minutes !== undefined
+                    ? formatRlMinutesLabel(overall.session_rl_minutes)
+                    : 'Pending';
+                const tokenLabel = overall.token_rl_minutes !== null && overall.token_rl_minutes !== undefined
+                    ? formatRlMinutesLabel(overall.token_rl_minutes)
+                    : 'Pending';
+
+                overallRlSummary.innerHTML = `
+                    <strong class="text-primary">Overall Session-Based:</strong> ${sessionLabel}
+                    (${overall.session_count ?? 0} result${(overall.session_count ?? 0) === 1 ? '' : 's'})<br>
+                    <strong class="text-danger">Overall Token-Based:</strong> ${tokenLabel}
+                    (${overall.token_count ?? 0} result${(overall.token_count ?? 0) === 1 ? '' : 's'})
+                `;
+            }
+        }
+
+        async function persistComparisonResult(sessionLatencySeconds, tokenLatencySeconds) {
+            if (!activeComparisonId) {
+                activeComparisonId = 'cmp-' + Date.now();
+            }
+
+            comparisonResultPersisted = true;
+            saveChartState();
+
+            try {
+                const response = await postJson(recordResultUrl, {
+                    comparison_id: activeComparisonId,
+                    session_credential: sessionInput.value.trim(),
+                    token_credential: tokenInput.value.trim(),
+                    session_latency_seconds: sessionLatencySeconds,
+                    token_latency_seconds: tokenLatencySeconds,
+                });
+
+                if (response.success) {
+                    renderComparisonCards(response.comparisons);
+                    renderOverallRlChart(response.overall);
+                } else {
+                    comparisonResultPersisted = false;
+                }
+            } catch (error) {
+                console.error('Unable to persist revocation latency comparison result.', error);
+                comparisonResultPersisted = false;
+            }
+        }
+
+        async function refreshComparisonResults() {
+            try {
+                const response = await fetch(testResultsUrl, {
+                    headers: { Accept: 'application/json' },
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    renderComparisonCards(data.comparisons);
+                    renderOverallRlChart(data.overall);
+                }
+            } catch (error) {
+                console.error('Unable to refresh revocation comparison results.', error);
+            }
+        }
 
         const attackSuccessRateState = {
             session: { attempts: 0, successes: 0 },
@@ -591,6 +894,8 @@
                 sessionAccessInvalidMs: sessionAccessInvalidMs,
                 tokenAccessInvalidMs: tokenAccessInvalidMs,
                 chartStartMs: chartStartMs,
+                comparisonResultPersisted: comparisonResultPersisted,
+                comparisonId: activeComparisonId,
                 sessionRl: sessionRlResult.textContent,
                 tokenRl: tokenRlResult.textContent,
                 attackSuccessRates: attackSuccessRateState,
@@ -653,6 +958,14 @@
 
                 if (snapshot.tokenAccessInvalidMs) {
                     tokenAccessInvalidMs = snapshot.tokenAccessInvalidMs;
+                }
+
+                if (snapshot.comparisonResultPersisted) {
+                    comparisonResultPersisted = true;
+                }
+
+                if (snapshot.comparisonId) {
+                    activeComparisonId = snapshot.comparisonId;
                 }
 
                 if (snapshot.attackSuccessRates) {
@@ -756,6 +1069,7 @@
         }
 
         restoreChartState();
+        refreshComparisonResults();
 
         function resetChartData() {
             chartMarkers.length = 0;
@@ -765,6 +1079,8 @@
             sessionAccessInvalidMs = null;
             tokenAccessInvalidMs = null;
             chartStartMs = null;
+            comparisonResultPersisted = false;
+            activeComparisonId = null;
             attackSuccessRateState.session = { attempts: 0, successes: 0 };
             attackSuccessRateState.token = { attempts: 0, successes: 0 };
             updateAttackSuccessRateUI();
@@ -846,6 +1162,10 @@
             }
 
             comparisonResultCard.classList.remove('d-none');
+
+            if (!comparisonResultPersisted) {
+                persistComparisonResult(sessionLatency, tokenLatency);
+            }
 
             if (sessionLatency < tokenLatency) {
                 comparisonResultText.textContent = 'Session is winner because Revocation Latency of Session is less than Revocation Latency of Token.';
@@ -1258,6 +1578,7 @@
             state.expiryMarkerAdded = false;
             state.expiryRecorded = false;
             state.unauthorizedAttempts = 0;
+            comparisonResultPersisted = false;
             ensureChartVisible();
             renderChart();
             if (type === 'session') {

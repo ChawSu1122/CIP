@@ -12,6 +12,7 @@ class ExperimentMetric extends Model
     protected $fillable = [
         'auth_type',
         'action',
+        'comparison_id',
         'method',
         'path',
         'duration_ms',
