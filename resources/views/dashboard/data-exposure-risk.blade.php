@@ -213,6 +213,10 @@
                 <canvas id="dataexOverallChart"></canvas>
             </div>
             <p class="mb-0 mt-3 small" id="dataex-overall-summary"></p>
+            <div class="mt-4">
+                <button id="dataex-overall-conclusion-toggle" type="button" class="btn btn-outline-primary btn-sm">Show Overall Conclusion</button>
+                <p id="dataex-overall-conclusion-text" class="d-none small mt-3 mb-0 h5">Overall Conclusion: Based on the results of the three security metrics, Session-Based Authentication provides better protection against the tested session hijacking scenario. It shows faster credential revocation, a lower attack success rate, and lower data exposure risk compared to JWT-Based Authentication. Therefore, Session-Based Authentication performs better in this study.</p>
+            </div>
         </div>
     </div>
 
@@ -240,6 +244,8 @@
         const dataexOverallChartCard = document.getElementById('dataex-overall-chart-card');
         const dataexOverallCanvas = document.getElementById('dataexOverallChart');
         const dataexOverallSummary = document.getElementById('dataex-overall-summary');
+        const overallConclusionToggle = document.getElementById('dataex-overall-conclusion-toggle');
+        const overallConclusionText = document.getElementById('dataex-overall-conclusion-text');
         const dataexComparisonCharts = new Map();
         let dataexOverallChart = null;
         const chartState = {
@@ -663,6 +669,12 @@
 
         refreshDataExposureResults();
         updateComparisonResult();
+
+        overallConclusionToggle.addEventListener('click', function () {
+            const isVisible = !overallConclusionText.classList.contains('d-none');
+            overallConclusionText.classList.toggle('d-none', isVisible);
+            overallConclusionToggle.textContent = isVisible ? 'Show Overall Conclusion' : 'Hide Overall Conclusion';
+        });
     });
 </script>
 @endsection
